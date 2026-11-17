@@ -2,432 +2,631 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>給錢啊😎 - 拍照秒拆帳</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>給錢啊😎 - 智慧拍照分帳神器</title>
+    <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- 引入 Google Fonts: Noto Sans TC & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- 引入 FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f8fafc;
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
             -webkit-tap-highlight-color: transparent;
         }
-        .gradient-header {
-            background: linear-gradient(135deg, #f97316 0%, #ef4444 55%, #ec4899 100%);
+        /* 自訂捲軸 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
-        .card-shadow {
-            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
         }
-        .item-card {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 3px;
         }
-        .item-card:focus-within {
-            border-color: #fb923c;
-            box-shadow: 0 12px 28px -6px rgba(249, 115, 22, 0.15);
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
         }
-        input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
+        /* 掃描動畫 */
+        @keyframes scanline {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
         }
-        @keyframes pulse-fast {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.65; transform: scale(0.96); }
-        }
-        .animate-scan {
-            animation: pulse-fast 1.5s infinite ease-in-out;
+        .scan-overlay::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, #f59e0b, #ef4444, transparent);
+            box-shadow: 0 0 12px #f59e0b;
+            animation: scanline 2s linear infinite;
         }
     </style>
 </head>
-<body class="text-slate-800 pb-28 min-h-screen">
+<body class="text-slate-800 antialiased pb-24">
 
     <!-- 頂部導覽列 -->
-    <header class="gradient-header text-white sticky top-0 z-30 shadow-lg">
-        <div class="max-w-xl mx-auto px-4 py-3.5 flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-                <span class="text-2xl filter drop-shadow">💸</span>
+    <header class="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <span class="text-3xl">💸</span>
                 <div>
-                    <h1 class="text-xl font-black tracking-tight flex items-center gap-1">
-                        給錢啊 <span class="text-2xl">😎</span>
+                    <h1 class="text-2xl font-black tracking-tight flex items-center">
+                        給錢啊<span class="ml-1 text-2xl">😎</span>
                     </h1>
-                    <p class="text-[11px] text-orange-100 font-medium opacity-90">拍照秒拆帳，感情不會散</p>
+                    <p class="text-xs text-amber-100 font-medium">拍照秒拆帳，感情不會散</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="openApiKeyModal()" id="apiKeyBtn" class="bg-white/20 hover:bg-white/30 active:scale-95 transition px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-sm flex items-center gap-1.5 border border-white/25">
-                    <i class="fa-solid fa-key"></i>
-                    <span id="apiKeyStatusText">設定金鑰</span>
+                <button onclick="openApiKeyModal()" id="apiKeyBtn" title="設定 AI 掃描金鑰" class="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5 backdrop-blur-sm">
+                    <i class="fa-solid fa-key"></i> <span class="hidden sm:inline">AI 金鑰</span>
+                    <span id="apiKeyStatusDot" class="w-2 h-2 rounded-full bg-amber-300"></span>
                 </button>
-                <button onclick="openResetModal()" class="bg-white/20 hover:bg-white/30 active:scale-95 transition px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-sm flex items-center gap-1.5 border border-white/25">
+                <button onclick="resetAll()" class="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1 backdrop-blur-sm">
                     <i class="fa-solid fa-rotate-right"></i> 重置
                 </button>
             </div>
         </div>
     </header>
 
+    <!-- API Key 設定彈窗 -->
+    <div id="apiKeyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-key text-amber-500"></i> 設定 Gemini API 金鑰
+                </h3>
+                <button onclick="closeApiKeyModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 leading-relaxed">
+                若要使用 <strong>AI 拍照辨識帳單</strong> 功能，請填入您的免費 Google Gemini API Key（純手動分帳則不需設定）。
+            </p>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">您的 Gemini API Key</label>
+                <input type="password" id="customApiKeyInput" placeholder="貼上 AIzaSy 開頭的金鑰..."
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="inline-block text-[11px] font-bold text-blue-600 hover:underline mt-2">
+                    <i class="fa-solid fa-up-right-from-square mr-1"></i>點此免費申請 Google Gemini API Key
+                </a>
+            </div>
+            <div id="apiKeyValidationMsg" class="hidden text-xs font-bold py-2 px-3 rounded-xl"></div>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="clearCustomApiKey()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2.5 px-3 rounded-xl text-xs transition">
+                    清除
+                </button>
+                <button type="button" onclick="closeApiKeyModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm transition">
+                    取消
+                </button>
+                <button type="button" id="saveApiKeyBtn" onclick="saveCustomApiKey()" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm transition">
+                    確認儲存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主內容區 -->
     <main class="max-w-xl mx-auto px-4 pt-5 space-y-5">
 
-        <!-- 步驟 1：參與人員與誰先出錢 -->
-        <section class="bg-white rounded-3xl p-5 card-shadow border border-slate-100 space-y-5">
-            <!-- 參與人員 -->
-            <div>
-                <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-2">
-                        <span class="w-6 h-6 rounded-full bg-orange-100 text-orange-600 font-black text-xs flex items-center justify-center">1</span>
-                        <h2 class="font-bold text-slate-800 text-base">這次誰有去？</h2>
-                        <span class="text-xs text-slate-400 font-normal">（點擊切換出席）</span>
-                    </div>
-                    <button onclick="toggleAddPersonInput()" class="text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-2.5 py-1.5 rounded-full transition flex items-center gap-1">
-                        <i class="fa-solid fa-user-plus"></i> 加新朋友
-                    </button>
-                </div>
+        <!-- 區塊 1：參與人員與先墊錢設定 -->
+        <section class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-black">1</span>
+                    這次有誰參加？
+                </h2>
+                <button onclick="toggleAddPerson()" class="text-xs font-bold text-amber-600 hover:text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg transition">
+                    <i class="fa-solid fa-user-plus mr-1"></i>加新朋友
+                </button>
+            </div>
 
-                <!-- 新增朋友輸入列 -->
-                <div id="addPersonBox" class="hidden mb-3 flex gap-2">
-                    <input type="text" id="newPersonName" placeholder="輸入朋友名字（例如：阿明）" maxlength="10"
-                        class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-orange-500 font-medium"
-                        onkeydown="if(event.key==='Enter') addNewPerson()">
-                    <button onclick="addNewPerson()" class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition shrink-0">
-                        新增
-                    </button>
-                </div>
+            <!-- 新增人員輸入框 (預設隱藏) -->
+            <div id="addPersonBox" class="hidden flex gap-2">
+                <input type="text" id="newPersonName" placeholder="輸入名字 (例如: 豪)" maxlength="6"
+                    class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <button onclick="addNewPerson()" class="bg-slate-800 text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-slate-700 transition">
+                    新增
+                </button>
+            </div>
 
-                <!-- 人員按鈕列表 -->
-                <div id="peopleList" class="flex flex-wrap gap-2.5"></div>
+            <!-- 人員勾選列表 -->
+            <div id="participantsList" class="flex flex-wrap gap-2.5">
+                <!-- 由 JS 動態生成 -->
             </div>
 
             <hr class="border-slate-100">
 
-            <!-- 先墊錢的人 -->
+            <!-- 誰先出錢 -->
             <div>
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="w-6 h-6 rounded-full bg-amber-100 text-amber-600 font-black text-xs flex items-center justify-center">2</span>
-                    <h2 class="font-bold text-slate-800 text-base">一開始誰先出錢？</h2>
-                    <span class="text-xs text-slate-400 font-normal">（先刷卡或付現的人）</span>
+                <h2 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-3">
+                    <span class="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-black">2</span>
+                    一開始誰先刷卡/付現？
+                </h2>
+                <div id="payerList" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    <!-- 由 JS 動態生成 -->
                 </div>
-                <div id="payerList" class="grid grid-cols-3 sm:grid-cols-4 gap-2.5"></div>
             </div>
         </section>
 
-        <!-- 步驟 2：帳單掃描與消費明細 -->
-        <section class="bg-white rounded-3xl p-5 card-shadow border border-slate-100 space-y-4">
+        <!-- 區塊 2：帳單拍照掃描 -->
+        <section class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
             <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-full bg-rose-100 text-rose-600 font-black text-xs flex items-center justify-center">3</span>
-                    <div>
-                        <h2 class="font-bold text-slate-800 text-base">帳單明細與分攤</h2>
-                    </div>
-                </div>
-                <span id="aiBadge" class="text-[11px] font-bold bg-gradient-to-r from-orange-500 to-pink-500 text-white px-2.5 py-1 rounded-full shadow-sm">
-                    <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>好市多收據強化版
-                </span>
+                <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-black">3</span>
+                    帳單掃描 & 明細
+                </h2>
+                <span class="text-xs text-slate-400 font-medium">支援 AI 自動辨識</span>
             </div>
 
-            <!-- 拍照與相簿按鈕 -->
+            <!-- 相機拍照與上傳按鈕區 -->
             <div class="grid grid-cols-2 gap-3">
-                <label class="cursor-pointer group relative overflow-hidden bg-slate-900 hover:bg-slate-800 active:scale-[0.98] transition text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 shadow-md">
-                    <div class="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center text-xl">
+                <!-- 呼叫手機相機拍照 -->
+                <label class="cursor-pointer bg-gradient-to-br from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 shadow-md transition active:scale-95">
+                    <div class="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center text-xl">
                         <i class="fa-solid fa-camera"></i>
                     </div>
-                    <span class="font-bold text-sm tracking-wide">相機拍帳單</span>
-                    <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleImageUpload(event)">
+                    <span class="text-sm font-bold">相機拍帳單</span>
+                    <input type="file" accept="image/*" capture="environment" class="hidden" onchange="handleImageUpload(event)">
                 </label>
 
-                <label class="cursor-pointer group bg-slate-50 hover:bg-slate-100 active:scale-[0.98] transition text-slate-700 border-2 border-dashed border-slate-200 hover:border-orange-300 rounded-2xl p-4 flex flex-col items-center justify-center gap-2">
-                    <div class="w-11 h-11 rounded-full bg-slate-200/70 text-slate-600 flex items-center justify-center text-xl">
-                        <i class="fa-regular fa-image"></i>
+                <!-- 從相簿選擇 -->
+                <label class="cursor-pointer bg-slate-50 hover:bg-slate-100 border-2 border-dashed border-slate-300 text-slate-700 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 transition active:scale-95">
+                    <div class="w-10 h-10 rounded-full bg-slate-200/70 flex items-center justify-center text-xl text-slate-600">
+                        <i class="fa-solid fa-image"></i>
                     </div>
-                    <span class="font-bold text-sm tracking-wide">相簿選照片</span>
-                    <input type="file" id="galleryInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                    <span class="text-sm font-bold">相簿選照片</span>
+                    <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
                 </label>
             </div>
 
-            <!-- 圖片預覽與掃描狀態區 -->
-            <div id="receiptPreviewContainer" class="hidden space-y-2">
-                <div class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900">
-                    <img id="receiptPreviewImg" src="" alt="帳單預覽" class="w-full max-h-72 object-contain mx-auto">
-                    
-                    <!-- 掃描中遮罩 -->
-                    <div id="scanningOverlay" class="hidden absolute inset-0 bg-slate-900/75 backdrop-blur-sm flex flex-col items-center justify-center text-white p-4 text-center">
-                        <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-orange-500 to-pink-500 flex items-center justify-center text-2xl mb-3 shadow-lg animate-scan">
-                            <i class="fa-solid fa-receipt"></i>
-                        </div>
-                        <p class="font-black text-base tracking-wide">AI 正在掃描帳單明細...</p>
-                        <p class="text-xs text-slate-300 mt-1">自動辨識好市多雙行品名與折價券（約 3~8 秒）</p>
-                    </div>
-
-                    <!-- 關閉預覽按鈕 -->
-                    <button onclick="clearReceiptPreview()" class="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center text-sm transition">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
+            <!-- 圖片預覽與掃描狀態 -->
+            <div id="imagePreviewContainer" class="hidden relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900">
+                <img id="receiptPreview" src="" alt="帳單預覽" class="w-full max-h-56 object-contain mx-auto opacity-90">
+                <!-- 掃描中遮罩 -->
+                <div id="scanningOverlay" class="hidden absolute inset-0 bg-slate-900/75 backdrop-blur-xs flex flex-col items-center justify-center text-white scan-overlay">
+                    <i class="fa-solid fa-wand-magic-sparkles text-3xl text-amber-400 animate-bounce mb-2"></i>
+                    <p class="font-bold text-sm tracking-wider">AI 正在努力辨識帳單明細...</p>
+                    <p class="text-xs text-slate-300 mt-1">請稍候幾秒鐘</p>
                 </div>
-
-                <!-- 重新掃描按鈕列 -->
-                <div class="flex items-center justify-between gap-2 bg-orange-50 border border-orange-200/80 rounded-xl px-3.5 py-2.5">
-                    <span id="scanStatusMsg" class="text-xs font-bold text-orange-800 flex items-center gap-1.5 leading-snug">
-                        <i class="fa-solid fa-circle-info text-orange-500 shrink-0"></i> 照片已載入
-                    </span>
-                    <button onclick="rescanCurrentImage()" class="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center gap-1 shrink-0">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i> 重新掃描
-                    </button>
-                </div>
+                <button onclick="clearImage()" class="absolute top-2 right-2 bg-black/60 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/80 transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
-            <!-- 消費項目列表標題與手動新增 -->
-            <div class="flex items-center justify-between pt-2">
-                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    消費項目清單 (<span id="itemCountBadge">0</span>)
-                </span>
-                <div class="flex items-center gap-1.5">
-                    <button onclick="loadCostcoSample()" class="text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 active:scale-95 transition px-3 py-1.5 rounded-full flex items-center gap-1">
-                        <i class="fa-solid fa-file-invoice-dollar"></i> 載入好市多帳單
-                    </button>
-                    <button onclick="addEmptyItem()" class="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 active:scale-95 transition px-3.5 py-1.5 rounded-full flex items-center gap-1">
+            <!-- 消費明細列表 -->
+            <div class="space-y-3 pt-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">消費項目清單 (<span id="itemCount">0</span>)</span>
+                    <button onclick="addEmptyItem()" class="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-xl transition flex items-center gap-1">
                         <i class="fa-solid fa-plus"></i> 手動加一筆
                     </button>
                 </div>
-            </div>
 
-            <!-- 消費項目容器 -->
-            <div id="itemsContainer" class="space-y-4"></div>
-
-            <!-- 稅金或服務費快捷按鈕 -->
-            <div class="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 text-xs">
-                <span class="text-slate-400 font-medium">餐廳聚餐要加服務費嗎？</span>
-                <button onclick="addServiceCharge()" class="font-bold text-slate-600 hover:text-orange-600 bg-slate-100 hover:bg-orange-50 px-3 py-1.5 rounded-xl transition flex items-center gap-1">
-                    <i class="fa-solid fa-percent text-[10px]"></i> 自動新增 10% 服務費
-                </button>
+                <!-- 明細卡片容器 -->
+                <div id="itemsContainer" class="space-y-3">
+                    <!-- 由 JS 動態生成 -->
+                </div>
             </div>
         </section>
 
-        <!-- 步驟 3：最終結算結果 -->
-        <section class="bg-slate-900 text-white rounded-3xl p-5 shadow-xl space-y-5 relative overflow-hidden">
-            <div class="absolute -right-10 -top-10 w-40 h-40 bg-orange-500/10 rounded-full blur-2xl pointer-events-none"></div>
-
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-full bg-orange-500 text-white font-black text-xs flex items-center justify-center">4</span>
-                    <h2 class="font-black text-lg tracking-tight">最後每人要付多少 💰</h2>
+        <!-- 區塊 3：最終結算結果 -->
+        <section class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white rounded-3xl p-6 shadow-xl space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-700/80 pb-4">
+                <div>
+                    <h2 class="text-lg font-black flex items-center gap-2">
+                        <span>💰</span> 結算：誰該給誰多少錢
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">已自動四捨五入至整數</p>
                 </div>
                 <div class="text-right">
-                    <span class="text-[11px] text-slate-400 block">帳單總金額</span>
-                    <span class="text-xl font-black text-orange-400">$<span id="totalBillAmount">0</span></span>
+                    <span class="text-xs text-slate-400 block">帳單總金額</span>
+                    <span class="text-2xl font-black text-amber-400">$<span id="totalAmount">0</span></span>
                 </div>
             </div>
 
-            <!-- 誰該給誰錢 (轉帳指示) -->
-            <div class="space-y-2.5">
-                <div class="text-xs font-bold text-slate-400 flex items-center justify-between">
-                    <span>👉 收款人：<strong id="summaryPayerName" class="text-amber-300">煜</strong>（先墊錢）</span>
-                    <span>四捨五入至整數</span>
-                </div>
-                <div id="transferList" class="space-y-2"></div>
+            <!-- 轉帳指令卡片 -->
+            <div id="settlementList" class="space-y-3">
+                <!-- 由 JS 動態生成 -->
             </div>
 
-            <!-- 每人消費細項折疊/展開 -->
-            <div class="pt-2 border-t border-slate-800">
-                <p class="text-xs font-bold text-slate-400 mb-2.5">📊 各別消費明細（含自己買的部分）：</p>
-                <div id="personalBreakdownList" class="grid grid-cols-1 gap-2"></div>
+            <!-- 個人消費明細折疊區 -->
+            <div class="pt-2">
+                <details class="group">
+                    <summary class="text-xs font-bold text-slate-400 hover:text-white cursor-pointer flex items-center justify-between py-2 select-none">
+                        <span><i class="fa-solid fa-receipt mr-1.5"></i>查看每個人各自點了多少錢</span>
+                        <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
+                    </summary>
+                    <div id="individualBreakdown" class="mt-2 space-y-2 bg-slate-800/60 rounded-2xl p-3.5 text-sm">
+                        <!-- 由 JS 動態生成 -->
+                    </div>
+                </details>
             </div>
 
-            <!-- 複製催款訊息按鈕 -->
-            <button onclick="copySummaryText()" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 hover:opacity-95 active:scale-[0.99] transition font-black text-sm shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2">
-                <i class="fa-regular fa-copy text-base"></i>
-                <span>複製催款明細（直接貼到 LINE）</span>
+            <!-- 複製結果按鈕 -->
+            <button onclick="copySummary()" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 active:scale-[0.99] text-slate-950 font-black py-3.5 px-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2 text-base">
+                <i class="fa-regular fa-copy"></i> 複製催款明細貼到 LINE 群組
             </button>
         </section>
 
     </main>
 
-    <!-- API Key 設定彈窗 -->
-    <div id="apiKeyModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-lg">
-                        <i class="fa-solid fa-key"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-black text-base text-slate-800">設定 AI 掃描金鑰</h3>
-                        <p class="text-xs text-slate-400">在 GitHub 網頁使用 AI 拍帳單需填入一次金鑰</p>
-                    </div>
-                </div>
-                <button onclick="closeApiKeyModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
+    <!-- 隱藏的 Canvas 用於壓縮圖片以加快 AI 辨識 -->
+    <canvas id="compressCanvas" class="hidden"></canvas>
 
-            <div class="bg-amber-50 border border-amber-200/80 rounded-2xl p-3.5 text-xs text-amber-900 space-y-1.5 leading-relaxed">
-                <p class="font-bold flex items-center gap-1.5 text-amber-800">
-                    <i class="fa-solid fa-circle-question"></i> 為什麼需要這把金鑰？
-                </p>
-                <p>因為網站放在公開的 GitHub 上，需要填入免費的 Google Gemini API Key 才能啟動 AI 帳單辨識。<strong>設定一次後就會自動記在您的手機裡！</strong></p>
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 font-black text-orange-600 underline mt-1">
-                    👉 點此免費取得 Gemini API Key (Google AI Studio) <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-                </a>
-            </div>
-
-            <div>
-                <label class="block text-xs font-bold text-slate-600 mb-1.5">貼上您的 Gemini API Key（以 AIzaSy 開頭）：</label>
-                <input type="password" id="apiKeyInput" placeholder="AIzaSy..." 
-                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:border-orange-500">
-            </div>
-
-            <div class="flex gap-2 pt-1">
-                <button onclick="closeApiKeyModal()" class="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm transition">
-                    稍後再說
-                </button>
-                <button onclick="saveApiKey()" class="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm shadow-md transition">
-                    儲存並開始掃描
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 重置確認彈窗 -->
-    <div id="resetModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl max-w-xs w-full p-6 shadow-2xl text-center space-y-4">
-            <div class="w-12 h-12 rounded-2xl bg-red-100 text-red-500 flex items-center justify-center text-xl mx-auto">
-                <i class="fa-solid fa-trash-can"></i>
-            </div>
-            <div>
-                <h3 class="font-black text-lg text-slate-800">要清空重來嗎？</h3>
-                <p class="text-xs text-slate-500 mt-1">這會清除目前所有的消費項目，但會保留人員名單。</p>
-            </div>
-            <div class="flex gap-2.5 pt-2">
-                <button onclick="closeResetModal()" class="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition">
-                    取消
-                </button>
-                <button onclick="confirmReset()" class="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition">
-                    確定清空
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 浮動提示 Toast -->
-    <div id="toastBox" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform translate-y-2">
-        <div class="bg-slate-900/95 text-white px-4 py-2.5 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2 border border-white/10 backdrop-blur-md">
-            <span id="toastIcon">✅</span>
-            <span id="toastMessage">已複製到剪貼簿</span>
-        </div>
+    <!-- 自訂提示訊息 Toast -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl text-sm font-bold flex items-center gap-2.5 opacity-0 pointer-events-none transition-all duration-300 z-50 border border-slate-700">
+        <span id="toastIcon">✅</span>
+        <span id="toastMsg">已複製到剪貼簿！</span>
     </div>
 
     <script>
         // ==========================================
-        // 1. 狀態定義與初始化（預設直接載入您的好市多北台中店收據！）
+        // 1. 狀態管理 (State)
         // ==========================================
-        const apiKey = ""; 
-        let userCustomApiKey = "";
-        let lastUploadedBase64 = null;
+        const DEFAULT_PEOPLE = [
+            { id: 'p_yu', name: '煜', active: true, color: 'bg-amber-500' },
+            { id: 'p_shan', name: '珊', active: true, color: 'bg-rose-500' },
+            { id: 'p_jie', name: '杰', active: true, color: 'bg-blue-500' }
+        ];
 
-        try {
-            userCustomApiKey = window['local' + 'Storage'].getItem('give_me_money_api_key') || "";
-        } catch (e) {}
-
-        // 預設直接幫您放好這張好市多收據的明細（折價券已自動扣除！）
-        const defaultCostcoItems = [
-            { id: 'c1', name: 'CJ高麗韭菜餃', price: 399, assignedTo: ['p1', 'p2', 'p3'] },
-            { id: 'c2', name: '美國特選牛小燒烤', price: 2112, assignedTo: ['p1', 'p2', 'p3'] },
-            { id: 'c3', name: '鵝油雙蔥煎餅 (原價$399 折$80)', price: 319, assignedTo: ['p1', 'p2', 'p3'] },
-            { id: 'c4', name: '義美可可蛋白飲', price: 799, assignedTo: ['p1', 'p2', 'p3'] },
-            { id: 'c5', name: 'KS纖維擦拭布36CT', price: 499, assignedTo: ['p1', 'p2', 'p3'] },
-            { id: 'c6', name: '海倫煥活洗護組 (原價$595 折$120)', price: 475, assignedTo: ['p1', 'p2', 'p3'] },
-            { id: 'c7', name: '超涵水9.0 - 8.00', price: 3189, assignedTo: ['p1', 'p2', 'p3'] },
-            { id: 'c8', name: '超涵水9.0 - 4.00 (原價$3189 折$700)', price: 2489, assignedTo: ['p1', 'p2', 'p3'] }
+        const AVATAR_COLORS = [
+            'bg-amber-500', 'bg-rose-500', 'bg-blue-500', 
+            'bg-emerald-500', 'bg-purple-500', 'bg-cyan-500', 'bg-indigo-500'
         ];
 
         let state = {
-            people: [
-                { id: 'p1', name: '煜', active: true, color: 'bg-blue-500' },
-                { id: 'p2', name: '珊', active: true, color: 'bg-pink-500' },
-                { id: 'p3', name: '杰', active: true, color: 'bg-emerald-500' }
-            ],
-            payerId: 'p1',
-            items: JSON.parse(JSON.stringify(defaultCostcoItems))
+            customApiKey: '',
+            people: JSON.parse(JSON.stringify(DEFAULT_PEOPLE)),
+            payerId: 'p_yu',
+            items: [
+                {
+                    id: 'item_1',
+                    name: '招牌豪華拼盤',
+                    price: 450,
+                    splitMode: 'all',
+                    assignedIds: ['p_yu', 'p_shan', 'p_jie']
+                },
+                {
+                    id: 'item_2',
+                    name: '冰美式咖啡',
+                    price: 120,
+                    splitMode: 'custom',
+                    assignedIds: ['p_shan']
+                }
+            ]
         };
 
-        const avatarColors = ['bg-blue-500', 'bg-pink-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500', 'bg-rose-500', 'bg-indigo-500'];
+        let activeResolvedModel = null;
 
-        function getEffectiveApiKey() {
-            return (userCustomApiKey && userCustomApiKey.trim()) ? userCustomApiKey.trim() : apiKey;
-        }
+        // ==========================================
+        // 2. 初始化與核心渲染邏輯
+        // ==========================================
+        window.onload = function() {
+            state.customApiKey = localStorage.getItem('gemini_api_key') || '';
+            activeResolvedModel = localStorage.getItem('gemini_model_name') || null;
+            updateApiKeyBadge();
+            renderAll();
+        };
 
-        function updateApiKeyButtonUI() {
-            const btnText = document.getElementById('apiKeyStatusText');
-            const btn = document.getElementById('apiKeyBtn');
-            if (getEffectiveApiKey()) {
-                btnText.textContent = '金鑰已就緒';
-                btn.className = "bg-emerald-500/30 hover:bg-emerald-500/40 active:scale-95 transition px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-sm flex items-center gap-1.5 border border-emerald-300/40 text-white";
+        function updateApiKeyBadge() {
+            const dot = document.getElementById('apiKeyStatusDot');
+            const modelName = localStorage.getItem('gemini_model_name');
+            if (!dot) return;
+            if (state.customApiKey) {
+                dot.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]';
+                dot.title = modelName ? `AI 金鑰已設定 (${modelName})` : 'AI 金鑰已設定';
             } else {
-                btnText.textContent = '設定金鑰';
-                btn.className = "bg-white/20 hover:bg-white/30 active:scale-95 transition px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-sm flex items-center gap-1.5 border border-white/25 text-white";
+                dot.className = 'w-2 h-2 rounded-full bg-amber-300';
+                dot.title = '尚未設定 AI 金鑰';
             }
-        }
-
-        function loadCostcoSample() {
-            const activeIds = getActivePeople().map(p => p.id);
-            state.items = defaultCostcoItems.map((it, idx) => ({
-                id: 'c_' + Date.now() + '_' + idx,
-                name: it.name,
-                price: it.price,
-                assignedTo: [...activeIds]
-            }));
-            renderItems();
-            renderSummary();
-            showToast('🛒 已載入您的好市多北台中店 8 筆明細！');
         }
 
         function renderAll() {
-            updateApiKeyButtonUI();
-            renderPeople();
+            ensureValidPayer();
+            renderParticipants();
             renderPayers();
             renderItems();
-            renderSummary();
+            calculateAndRenderSettlement();
         }
 
-        // ==========================================
-        // 2. 人員與墊錢者管理
-        // ==========================================
-        function getActivePeople() {
-            return state.people.filter(p => p.active);
+        function ensureValidPayer() {
+            const activePeople = state.people.filter(p => p.active);
+            if (activePeople.length === 0) {
+                state.payerId = null;
+                return;
+            }
+            const isPayerActive = activePeople.some(p => p.id === state.payerId);
+            if (!isPayerActive) {
+                state.payerId = activePeople[0].id;
+            }
         }
 
-        function togglePersonActive(personId) {
-            const activeCount = getActivePeople().length;
-            const target = state.people.find(p => p.id === personId);
-            if (!target) return;
+        function renderParticipants() {
+            const container = document.getElementById('participantsList');
+            container.innerHTML = '';
 
-            if (target.active && activeCount <= 1) {
-                showToast('⚠️ 至少要有 1 個人參加喔！');
+            state.people.forEach(person => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => toggleParticipant(person.id);
+                
+                if (person.active) {
+                    btn.className = `flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition shadow-xs border-2 border-slate-800 bg-slate-800 text-white active:scale-95`;
+                    btn.innerHTML = `
+                        <span class="w-5 h-5 rounded-full ${person.color} text-white text-xs flex items-center justify-center font-black">${person.name[0]}</span>
+                        <span>${person.name}</span>
+                        <i class="fa-solid fa-circle-check text-amber-400 ml-0.5"></i>
+                    `;
+                } else {
+                    btn.className = `flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition border-2 border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-100 active:scale-95`;
+                    btn.innerHTML = `
+                        <span class="w-5 h-5 rounded-full bg-slate-300 text-white text-xs flex items-center justify-center font-black">${person.name[0]}</span>
+                        <span>${person.name}</span>
+                        <i class="fa-regular fa-circle ml-0.5"></i>
+                    `;
+                }
+                container.appendChild(btn);
+            });
+        }
+
+        function renderPayers() {
+            const container = document.getElementById('payerList');
+            container.innerHTML = '';
+            const activePeople = state.people.filter(p => p.active);
+
+            if (activePeople.length === 0) {
+                container.innerHTML = `<p class="col-span-full text-xs text-rose-500 font-bold py-2">請至少選擇一位參加人員！</p>`;
                 return;
             }
 
-            target.active = !target.active;
+            activePeople.forEach(person => {
+                const isSelected = state.payerId === person.id;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => {
+                    state.payerId = person.id;
+                    renderAll();
+                };
 
-            const currentActive = getActivePeople();
-            if (!currentActive.some(p => p.id === state.payerId)) {
-                state.payerId = currentActive[0].id;
+                if (isSelected) {
+                    btn.className = `flex flex-col items-center justify-center p-3 rounded-2xl border-2 border-rose-500 bg-rose-50 text-rose-700 font-black text-sm shadow-xs transition active:scale-95`;
+                    btn.innerHTML = `
+                        <div class="flex items-center gap-1.5">
+                            <i class="fa-solid fa-wallet text-rose-500"></i>
+                            <span>${person.name}</span>
+                        </div>
+                        <span class="text-[10px] font-bold text-rose-500 mt-0.5">先墊錢</span>
+                    `;
+                } else {
+                    btn.className = `flex flex-col items-center justify-center p-3 rounded-2xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold text-sm transition active:scale-95`;
+                    btn.innerHTML = `
+                        <span>${person.name}</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">點擊切換</span>
+                    `;
+                }
+                container.appendChild(btn);
+            });
+        }
+
+        function renderItems() {
+            const container = document.getElementById('itemsContainer');
+            document.getElementById('itemCount').innerText = state.items.length;
+            container.innerHTML = '';
+
+            const activePeople = state.people.filter(p => p.active);
+
+            if (state.items.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <p class="text-slate-400 text-sm font-medium">目前還沒有消費明細喔！</p>
+                        <p class="text-slate-400 text-xs mt-1">可以點擊上方「相機拍帳單」或「手動加一筆」</p>
+                    </div>
+                `;
+                return;
             }
 
+            state.items.forEach((item, index) => {
+                const validAssigned = item.assignedIds.filter(id => activePeople.some(p => p.id === id));
+                
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-amber-300/80 space-y-3.5 transition-all duration-200';
+                
+                let splitCount = item.splitMode === 'all' ? activePeople.length : validAssigned.length;
+                let perPersonText = splitCount > 0 && item.price > 0 
+                    ? `每人 <span class="text-slate-800 font-black">$${Math.round(item.price / splitCount).toLocaleString()}</span>` 
+                    : '<span class="text-rose-500">尚未指定分攤人</span>';
+
+                let peopleButtonsHtml = '';
+                activePeople.forEach(p => {
+                    const isChecked = item.splitMode === 'all' || validAssigned.includes(p.id);
+                    const btnStyle = isChecked 
+                        ? `${p.color} text-white border-transparent shadow-xs` 
+                        : `bg-white text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600`;
+                    
+                    peopleButtonsHtml += `
+                        <button type="button" onclick="toggleItemPerson('${item.id}', '${p.id}')"
+                            class="px-3.5 py-1.5 rounded-xl text-xs font-bold border transition active:scale-95 flex items-center gap-1.5 ${btnStyle}">
+                            <span>${p.name}</span>
+                            ${isChecked ? '<i class="fa-solid fa-check text-[10px]"></i>' : ''}
+                        </button>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <!-- 欄位優化：品項名稱獨立整排，超寬顯示 -->
+                    <div class="space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                                <span class="w-5 h-5 rounded-md bg-amber-500/15 text-amber-600 font-black flex items-center justify-center">${index + 1}</span>
+                                品項名稱
+                            </span>
+                            <button type="button" onclick="deleteItem('${item.id}')" title="刪除項目"
+                                class="text-slate-300 hover:text-rose-500 text-xs px-2 py-1 transition flex items-center gap-1">
+                                <i class="fa-solid fa-trash-can"></i> 刪除
+                            </button>
+                        </div>
+                        <input type="text" value="${escapeHtml(item.name)}" placeholder="輸入品項名稱 (例如：無骨牛小排拼盤、招牌珍奶)"
+                            onchange="updateItemField('${item.id}', 'name', this.value)"
+                            class="w-full bg-slate-50/90 hover:bg-slate-100/80 focus:bg-white border border-slate-200 focus:border-amber-500 rounded-2xl px-4 py-3 text-base font-bold text-slate-800 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition">
+                    </div>
+
+                    <!-- 金額與平均分攤提示 -->
+                    <div class="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100">
+                        <div class="flex items-center gap-2.5">
+                            <span class="text-xs font-bold text-slate-500">金額</span>
+                            <div class="relative w-36 sm:w-40">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-500 font-black">$</span>
+                                <input type="number" inputmode="decimal" value="${item.price === 0 ? '' : item.price}" placeholder="0"
+                                    onchange="updateItemField('${item.id}', 'price', parseFloat(this.value) || 0)"
+                                    class="w-full bg-white border border-slate-200/90 rounded-xl pl-8 pr-3.5 py-2 text-base font-black text-right text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition">
+                            </div>
+                        </div>
+                        <div class="text-xs font-bold text-slate-500 text-right">
+                            ${perPersonText}
+                        </div>
+                    </div>
+
+                    <!-- 誰要分攤 -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+                        <span class="text-xs font-bold text-slate-400 flex items-center gap-1">
+                            <i class="fa-solid fa-users text-slate-300"></i> 分攤對象：
+                        </span>
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <button type="button" onclick="setItemSplitAll('${item.id}')"
+                                class="px-3.5 py-1.5 rounded-xl text-xs font-black transition active:scale-95 ${item.splitMode === 'all' ? 'bg-slate-800 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                                全部人平分
+                            </button>
+                            <span class="text-slate-200 text-xs mx-0.5">|</span>
+                            ${peopleButtonsHtml}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function calculateAndRenderSettlement() {
+            const activePeople = state.people.filter(p => p.active);
+            const settlementContainer = document.getElementById('settlementList');
+            const breakdownContainer = document.getElementById('individualBreakdown');
+            
+            let totalBill = 0;
+            let personTotals = {};
+            activePeople.forEach(p => personTotals[p.id] = 0);
+
             state.items.forEach(item => {
-                if (target.active) {
-                    if (!item.assignedTo.includes(personId)) {
-                        item.assignedTo.push(personId);
-                    }
+                const price = Number(item.price) || 0;
+                totalBill += price;
+
+                let sharers = [];
+                if (item.splitMode === 'all') {
+                    sharers = activePeople.map(p => p.id);
                 } else {
-                    item.assignedTo = item.assignedTo.filter(id => id !== personId);
-                    if (item.assignedTo.length === 0 && currentActive.length > 0) {
-                        item.assignedTo = currentActive.map(p => p.id);
-                    }
+                    sharers = item.assignedIds.filter(id => activePeople.some(p => p.id === id));
+                }
+
+                if (sharers.length > 0 && price > 0) {
+                    const splitAmount = price / sharers.length;
+                    sharers.forEach(id => {
+                        personTotals[id] = (personTotals[id] || 0) + splitAmount;
+                    });
+                }
+            });
+
+            document.getElementById('totalAmount').innerText = Math.round(totalBill).toLocaleString();
+
+            breakdownContainer.innerHTML = '';
+            if (activePeople.length === 0) {
+                breakdownContainer.innerHTML = '<p class="text-slate-400 text-xs">無參加人員</p>';
+            } else {
+                activePeople.forEach(p => {
+                    const isPayer = p.id === state.payerId;
+                    const amt = Math.round(personTotals[p.id] || 0);
+                    breakdownContainer.innerHTML += `
+                        <div class="flex items-center justify-between py-1 border-b border-slate-700/50 last:border-0">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-full ${p.color} text-white text-[10px] flex items-center justify-center font-black">${p.name[0]}</span>
+                                <span class="font-bold text-slate-200">${p.name}</span>
+                                ${isPayer ? '<span class="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded font-bold">先墊錢</span>' : ''}
+                            </div>
+                            <span class="font-black text-slate-100">$${amt.toLocaleString()}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            settlementContainer.innerHTML = '';
+            const payer = activePeople.find(p => p.id === state.payerId);
+
+            if (!payer || activePeople.length === 0) {
+                settlementContainer.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">請先選擇參加人員與墊錢的人</p>`;
+                return;
+            }
+
+            let hasDebts = false;
+            activePeople.forEach(p => {
+                if (p.id === payer.id) return;
+                const oweAmount = Math.round(personTotals[p.id] || 0);
+                if (oweAmount > 0) {
+                    hasDebts = true;
+                    settlementContainer.innerHTML += `
+                        <div class="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-8 h-8 rounded-full ${p.color} text-white font-black flex items-center justify-center shadow">${p.name[0]}</span>
+                                    <span class="font-black text-base">${p.name}</span>
+                                </div>
+                                <div class="flex flex-col items-center px-1 text-amber-400">
+                                    <span class="text-[10px] font-bold tracking-wider">給錢啊</span>
+                                    <i class="fa-solid fa-arrow-right-long"></i>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-8 h-8 rounded-full ${payer.color} text-white font-black flex items-center justify-center shadow">${payer.name[0]}</span>
+                                    <span class="font-black text-base">${payer.name}</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xl font-black text-emerald-400">$${oweAmount.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            if (!hasDebts) {
+                settlementContainer.innerHTML = `
+                    <div class="bg-white/5 rounded-2xl p-4 text-center text-slate-400 text-sm">
+                        🎉 目前沒有人需要額外付錢給 <strong class="text-white">${payer.name}</strong>！
+                    </div>
+                `;
+            }
+        }
+
+        function toggleParticipant(id) {
+            const person = state.people.find(p => p.id === id);
+            if (!person) return;
+            person.active = !person.active;
+
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
+            state.items.forEach(item => {
+                if (item.splitMode === 'all') {
+                    item.assignedIds = [...activeIds];
+                } else {
+                    item.assignedIds = item.assignedIds.filter(aid => activeIds.includes(aid));
                 }
             });
 
             renderAll();
         }
 
-        function toggleAddPersonInput() {
+        function toggleAddPerson() {
             const box = document.getElementById('addPersonBox');
             box.classList.toggle('hidden');
             if (!box.classList.contains('hidden')) {
@@ -439,585 +638,168 @@
             const input = document.getElementById('newPersonName');
             const name = input.value.trim();
             if (!name) {
-                showToast('⚠️ 請輸入朋友的名字');
+                showToast('請輸入朋友的名字喔！', '⚠️');
                 return;
             }
             if (state.people.some(p => p.name === name)) {
-                showToast('⚠️ 這個名字已經在名單裡囉');
+                showToast('這個名字已經在名單裡囉！', '⚠️');
                 return;
             }
 
+            const color = AVATAR_COLORS[state.people.length % AVATAR_COLORS.length];
             const newId = 'p_' + Date.now();
-            const color = avatarColors[state.people.length % avatarColors.length];
-            state.people.push({ id: newId, name, active: true, color });
-
-            const activeIds = getActivePeople().map(p => p.id);
+            state.people.push({ id: newId, name: name, active: true, color: color });
+            
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
             state.items.forEach(item => {
-                if (item.assignedTo.length === activeIds.length - 1) {
-                    item.assignedTo.push(newId);
+                if (item.splitMode === 'all') {
+                    item.assignedIds = [...activeIds];
                 }
             });
 
             input.value = '';
             document.getElementById('addPersonBox').classList.add('hidden');
-            showToast(`🎉 已加入「${name}」`);
+            renderAll();
+            showToast(`已加入「${name}」！`, '👋');
+        }
+
+        function addEmptyItem() {
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
+            state.items.push({
+                id: 'item_' + Date.now() + Math.random().toString(36).substr(2, 4),
+                name: '',
+                price: 0,
+                splitMode: 'all',
+                assignedIds: [...activeIds]
+            });
             renderAll();
         }
 
-        function setPayer(personId) {
-            state.payerId = personId;
-            renderPayers();
-            renderSummary();
+        function updateItemField(itemId, field, value) {
+            const item = state.items.find(i => i.id === itemId);
+            if (item) {
+                item[field] = value;
+                renderItems();
+                calculateAndRenderSettlement();
+            }
         }
 
-        function renderPeople() {
-            const container = document.getElementById('peopleList');
-            container.innerHTML = state.people.map(p => {
-                const activeClass = p.active
-                    ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20'
-                    : 'bg-slate-100 text-slate-400 border-slate-200 opacity-70';
-                const checkIcon = p.active
-                    ? '<i class="fa-solid fa-circle-check text-xs"></i>'
-                    : '<i class="fa-regular fa-circle text-xs"></i>';
-
-                return `
-                    <button onclick="togglePersonActive('${p.id}')" 
-                        class="px-4 py-2 rounded-2xl border font-bold text-sm transition active:scale-95 flex items-center gap-2 ${activeClass}">
-                        ${checkIcon}
-                        <span>${escapeHtml(p.name)}</span>
-                        <span class="text-[11px] font-normal opacity-85">${p.active ? '有去' : '沒去'}</span>
-                    </button>
-                `;
-            }).join('');
-        }
-
-        function renderPayers() {
-            const container = document.getElementById('payerList');
-            const activePeople = getActivePeople();
-
-            container.innerHTML = activePeople.map(p => {
-                const isPayer = p.id === state.payerId;
-                const btnStyle = isPayer
-                    ? 'bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/20 ring-2 ring-amber-300/50'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200';
-
-                return `
-                    <button onclick="setPayer('${p.id}')"
-                        class="py-2.5 px-3 rounded-2xl border font-bold text-sm transition active:scale-95 flex items-center justify-center gap-1.5 ${btnStyle}">
-                        ${isPayer ? '👑' : ''}
-                        <span class="truncate">${escapeHtml(p.name)}</span>
-                        ${isPayer ? '<span class="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full">先出</span>' : ''}
-                    </button>
-                `;
-            }).join('');
-        }
-
-        // ==========================================
-        // 3. 消費項目與分配管理
-        // ==========================================
-        function addEmptyItem() {
-            const activeIds = getActivePeople().map(p => p.id);
-            state.items.push({
-                id: 'i_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-                name: '',
-                price: '',
-                assignedTo: [...activeIds]
-            });
-            renderItems();
-            renderSummary();
-        }
-
-        function removeItem(itemId) {
+        function deleteItem(itemId) {
             state.items = state.items.filter(i => i.id !== itemId);
-            renderItems();
-            renderSummary();
+            renderAll();
         }
 
-        function updateItemName(itemId, val) {
-            const item = state.items.find(i => i.id === itemId);
-            if (item) {
-                item.name = val;
-                renderSummary();
-            }
-        }
-
-        function updateItemPrice(itemId, val) {
-            const item = state.items.find(i => i.id === itemId);
-            if (item) {
-                item.price = val === '' ? '' : Number(val);
-                const splitHintEl = document.getElementById(`split_hint_${itemId}`);
-                if (splitHintEl) {
-                    const count = item.assignedTo.length;
-                    const numPrice = Number(item.price) || 0;
-                    splitHintEl.textContent = count > 0
-                        ? `${count} 人分 · 每人 $${Math.round(numPrice / count)}`
-                        : '尚未指定分攤人';
-                }
-                renderSummary();
-            }
-        }
-
-        function selectAllForItem(itemId) {
+        function setItemSplitAll(itemId) {
             const item = state.items.find(i => i.id === itemId);
             if (!item) return;
-            item.assignedTo = getActivePeople().map(p => p.id);
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
+            item.splitMode = 'all';
+            item.assignedIds = [...activeIds];
             renderItems();
-            renderSummary();
+            calculateAndRenderSettlement();
         }
 
         function toggleItemPerson(itemId, personId) {
             const item = state.items.find(i => i.id === itemId);
             if (!item) return;
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
 
-            if (item.assignedTo.includes(personId)) {
-                if (item.assignedTo.length <= 1) {
-                    showToast('⚠️ 每項消費至少要有 1 人負擔喔！');
-                    return;
+            if (item.splitMode === 'all') {
+                item.splitMode = 'custom';
+                item.assignedIds = activeIds.filter(id => id !== personId);
+            } else {
+                if (item.assignedIds.includes(personId)) {
+                    item.assignedIds = item.assignedIds.filter(id => id !== personId);
+                } else {
+                    item.assignedIds.push(personId);
                 }
-                item.assignedTo = item.assignedTo.filter(id => id !== personId);
-            } else {
-                item.assignedTo.push(personId);
+                if (item.assignedIds.length === activeIds.length && activeIds.every(id => item.assignedIds.includes(id))) {
+                    item.splitMode = 'all';
+                }
             }
+
             renderItems();
-            renderSummary();
+            calculateAndRenderSettlement();
         }
 
-        function addServiceCharge() {
-            const currentTotal = state.items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
-            if (currentTotal <= 0) {
-                showToast('⚠️ 請先輸入消費金額再計算服務費');
-                return;
-            }
-            const serviceFee = Math.round(currentTotal * 0.1);
-            const activeIds = getActivePeople().map(p => p.id);
-            state.items.push({
-                id: 'i_srv_' + Date.now(),
-                name: '10% 服務費',
-                price: serviceFee,
-                assignedTo: [...activeIds]
-            });
-            showToast(`✅ 已新增 $${serviceFee} 服務費`);
-            renderItems();
-            renderSummary();
+        function resetAll() {
+            state.people = JSON.parse(JSON.stringify(DEFAULT_PEOPLE));
+            state.payerId = 'p_yu';
+            state.items = [];
+            clearImage();
+            renderAll();
+            showToast('已清空帳單，準備好開始新的一攤！', '✨');
         }
 
-        function renderItems() {
-            const container = document.getElementById('itemsContainer');
-            const badge = document.getElementById('itemCountBadge');
-            const activePeople = getActivePeople();
-
-            badge.textContent = state.items.length;
-
-            if (state.items.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-9 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400">
-                        <i class="fa-solid fa-utensils text-2xl mb-2 opacity-50"></i>
-                        <p class="text-sm font-medium">目前還沒有消費項目</p>
-                        <p class="text-xs mt-0.5">點擊上方「相機拍帳單」或「手動加一筆」開始吧！</p>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = state.items.map((item, idx) => {
-                const isAllSelected = activePeople.length > 0 && activePeople.every(p => item.assignedTo.includes(p.id));
-                const assignedCount = item.assignedTo.filter(id => activePeople.some(p => p.id === id)).length;
-                const numPrice = Number(item.price) || 0;
-                const perPerson = assignedCount > 0 ? Math.round(numPrice / assignedCount) : 0;
-
-                const allBtnClass = isAllSelected
-                    ? 'bg-orange-500 text-white border-orange-500 shadow-sm shadow-orange-500/20'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100';
-
-                const personButtons = activePeople.map(p => {
-                    const selected = item.assignedTo.includes(p.id);
-                    const pClass = selected
-                        ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
-                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100';
-                    return `
-                        <button onclick="toggleItemPerson('${item.id}', '${p.id}')"
-                            class="px-3.5 py-1.5 rounded-xl border text-xs font-bold transition active:scale-95 flex items-center gap-1.5 ${pClass}">
-                            ${selected ? '<i class="fa-solid fa-check text-[10px] text-orange-400"></i>' : ''}
-                            <span>${escapeHtml(p.name)}</span>
-                        </button>
-                    `;
-                }).join('');
-
-                return `
-                    <div class="item-card bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-sm space-y-3.5">
-                        <!-- 第一層：品項編號 + 刪除按鈕 + 超寬品項名稱輸入框 -->
-                        <div class="space-y-2">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="px-2 py-0.5 rounded-lg bg-orange-100 text-orange-600 font-black text-xs">
-                                        #${idx + 1}
-                                    </span>
-                                    <span class="text-xs font-bold text-slate-400">品項名稱</span>
-                                </div>
-                                <button onclick="removeItem('${item.id}')" title="刪除此項目"
-                                    class="text-xs font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 px-2.5 py-1 rounded-lg flex items-center gap-1 transition">
-                                    <i class="fa-regular fa-trash-can"></i>
-                                    <span>刪除</span>
-                                </button>
-                            </div>
-                            <input type="text" value="${escapeHtml(item.name)}" placeholder="輸入品項名稱（如：無骨牛小排、韓式炸雞）"
-                                oninput="updateItemName('${item.id}', this.value)"
-                                class="w-full bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-orange-500 rounded-xl px-3.5 py-2.5 text-base font-bold text-slate-800 placeholder-slate-300 focus:outline-none transition">
-                        </div>
-
-                        <!-- 第二層：單項金額輸入與即時分攤提示 -->
-                        <div class="flex items-center justify-between gap-3 bg-slate-50 rounded-xl p-3 border border-slate-100">
-                            <div class="flex items-center gap-2.5 flex-1">
-                                <span class="text-xs font-bold text-slate-500 shrink-0">金額</span>
-                                <div class="relative flex-1 max-w-[180px]">
-                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-orange-500">$</span>
-                                    <input type="number" inputmode="decimal" value="${item.price}" placeholder="0"
-                                        oninput="updateItemPrice('${item.id}', this.value)"
-                                        class="w-full bg-white border border-slate-200 rounded-xl pl-7 pr-3 py-1.5 text-base font-black text-slate-800 focus:outline-none focus:border-orange-500">
-                                </div>
-                            </div>
-                            <div class="text-right shrink-0">
-                                <span id="split_hint_${item.id}" class="inline-block text-xs font-bold text-orange-600 bg-orange-100/70 px-2.5 py-1 rounded-lg">
-                                    ${assignedCount > 0 ? `${assignedCount} 人分 · 每人 $${perPerson}` : '尚未指定分攤人'}
-                                </span>
-                            </div>
-                        </div>
-
-                        <!-- 第三層：分攤對象選擇 -->
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-0.5">
-                            <span class="text-xs font-bold text-slate-400 flex items-center gap-1.5 shrink-0">
-                                <i class="fa-solid fa-user-group text-[11px]"></i> 誰要分攤：
-                            </span>
-                            <div class="flex flex-wrap items-center gap-1.5">
-                                <button onclick="selectAllForItem('${item.id}')"
-                                    class="px-3.5 py-1.5 rounded-xl border text-xs font-bold transition active:scale-95 flex items-center gap-1 ${allBtnClass}">
-                                    <i class="fa-solid fa-users text-[10px]"></i> 全部人平分
-                                </button>
-                                ${personButtons}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // ==========================================
-        // 4. 結算計算與渲染
-        // ==========================================
-        function calculateSummary() {
-            const activePeople = getActivePeople();
-            const activeIds = activePeople.map(p => p.id);
-            const payer = state.people.find(p => p.id === state.payerId) || activePeople[0];
-
-            const breakdown = {};
-            activePeople.forEach(p => {
-                breakdown[p.id] = {
-                    person: p,
-                    total: 0,
-                    details: []
-                };
-            });
-
-            let totalBill = 0;
-
-            state.items.forEach(item => {
-                const price = Number(item.price) || 0;
-                if (price === 0) return;
-
-                const validAssignees = item.assignedTo.filter(id => activeIds.includes(id));
-                if (validAssignees.length === 0) return;
-
-                totalBill += price;
-                const share = price / validAssignees.length;
-
-                validAssignees.forEach(pid => {
-                    if (breakdown[pid]) {
-                        breakdown[pid].total += share;
-                        breakdown[pid].details.push({
-                            name: item.name || '未命名品項',
-                            share: Math.round(share),
-                            isShared: validAssignees.length > 1,
-                            splitCount: validAssignees.length
-                        });
-                    }
-                });
-            });
-
-            return {
-                totalBill: Math.round(totalBill),
-                payer,
-                breakdown
-            };
-        }
-
-        function renderSummary() {
-            const { totalBill, payer, breakdown } = calculateSummary();
-
-            document.getElementById('totalBillAmount').textContent = totalBill.toLocaleString();
-            document.getElementById('summaryPayerName').textContent = payer ? payer.name : '未指定';
-
-            const transferContainer = document.getElementById('transferList');
-            const personalContainer = document.getElementById('personalBreakdownList');
-
-            const entries = Object.values(breakdown);
-
-            const debtors = entries.filter(e => e.person.id !== (payer && payer.id));
-            if (debtors.length === 0) {
-                transferContainer.innerHTML = `
-                    <div class="bg-slate-800/80 rounded-2xl p-3.5 text-xs text-slate-400 text-center">
-                        目前只有 1 人參與，無須轉帳分攤。
-                    </div>
-                `;
-            } else {
-                transferContainer.innerHTML = debtors.map(entry => {
-                    const amount = Math.round(entry.total);
-                    return `
-                        <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-3.5 flex items-center justify-between">
-                            <div class="flex items-center gap-2.5">
-                                <span class="w-8 h-8 rounded-full ${entry.person.color} text-white font-black text-sm flex items-center justify-center shadow">
-                                    ${escapeHtml(entry.person.name.charAt(0))}
-                                </span>
-                                <div class="text-sm font-bold flex items-center gap-1.5">
-                                    <span class="text-white">${escapeHtml(entry.person.name)}</span>
-                                    <i class="fa-solid fa-arrow-right text-[11px] text-orange-400 mx-0.5"></i>
-                                    <span class="text-slate-300">給 ${escapeHtml(payer.name)}</span>
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-lg font-black ${amount > 0 ? 'text-orange-400' : 'text-slate-500'}">
-                                    $${amount.toLocaleString()}
-                                </span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            personalContainer.innerHTML = entries.map(entry => {
-                const amount = Math.round(entry.total);
-                const isPayer = payer && entry.person.id === payer.id;
-                const detailTags = entry.details.length > 0
-                    ? entry.details.map(d => `${escapeHtml(d.name)} $${d.share}`).join('、')
-                    : '無分攤項目';
-
-                return `
-                    <div class="bg-slate-800/40 rounded-xl px-3.5 py-2.5 flex flex-col gap-1 border border-slate-800">
-                        <div class="flex items-center justify-between text-xs font-bold">
-                            <span class="text-slate-200 flex items-center gap-1.5">
-                                ${escapeHtml(entry.person.name)}
-                                ${isPayer ? '<span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">先墊錢</span>' : ''}
-                            </span>
-                            <span class="text-slate-300">應付小計：$${amount.toLocaleString()}</span>
-                        </div>
-                        <p class="text-[11px] text-slate-400 leading-relaxed">${detailTags}</p>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // ==========================================
-        // 5. 手機圖片壓縮與 Gemini AI 帳單掃描（強化多模型相容性）
-        // ==========================================
-        function compressImageToBase64(file, maxDimension = 1600, quality = 0.85) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    const img = new Image();
-                    img.onload = function() {
-                        let width = img.width;
-                        let height = img.height;
-                        if (width > maxDimension || height > maxDimension) {
-                            if (width > height) {
-                                height = Math.round((height * maxDimension) / width);
-                                width = maxDimension;
-                            } else {
-                                width = Math.round((width * maxDimension) / height);
-                                height = maxDimension;
-                            }
-                        }
-                        const canvas = document.createElement('canvas');
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-                        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                        resolve(dataUrl);
-                    };
-                    img.onerror = reject;
-                    img.src = event.target.result;
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        }
-
-        async function handleImageUpload(event) {
-            const file = event.target.files?.[0];
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
             if (!file) return;
 
-            const previewContainer = document.getElementById('receiptPreviewContainer');
-            const previewImg = document.getElementById('receiptPreviewImg');
-            const statusMsg = document.getElementById('scanStatusMsg');
-
-            try {
-                statusMsg.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-orange-500"></i> 正在最佳化照片畫質...`;
-                previewContainer.classList.remove('hidden');
-
-                const compressedDataUrl = await compressImageToBase64(file);
-                previewImg.src = compressedDataUrl;
-                lastUploadedBase64 = compressedDataUrl.split(',')[1];
-
-                if (!getEffectiveApiKey()) {
-                    statusMsg.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500"></i> 尚未設定 AI 金鑰！請在跳出的視窗貼上金鑰`;
-                    openApiKeyModal();
-                    event.target.value = '';
-                    return;
-                }
-
-                await triggerScanWithBase64(lastUploadedBase64);
-            } catch (err) {
-                statusMsg.innerHTML = `<i class="fa-solid fa-circle-exclamation text-red-500"></i> 照片讀取失敗，請換一張試試`;
-                showToast('⚠️ 照片讀取失敗，請重試');
-            } finally {
-                event.target.value = '';
-            }
-        }
-
-        async function rescanCurrentImage() {
-            if (!lastUploadedBase64) {
-                showToast('⚠️ 請先拍照或選擇一張帳單照片');
-                return;
-            }
-            if (!getEffectiveApiKey()) {
+            if (!state.customApiKey) {
+                showToast('請先設定 Gemini API 金鑰方可使用掃描功能。', '🔑');
                 openApiKeyModal();
+                event.target.value = '';
                 return;
             }
-            await triggerScanWithBase64(lastUploadedBase64);
-        }
 
-        async function triggerScanWithBase64(base64Data) {
-            const overlay = document.getElementById('scanningOverlay');
-            const statusMsg = document.getElementById('scanStatusMsg');
-            overlay.classList.remove('hidden');
-            statusMsg.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-orange-500"></i> AI 正在深度解析好市多/餐廳收據...`;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.getElementById('compressCanvas');
+                    const MAX_DIMENSION = 1600;
+                    let width = img.width;
+                    let height = img.height;
 
-            try {
-                const scannedItems = await scanReceiptWithGemini(base64Data, 'image/jpeg');
-                if (scannedItems && scannedItems.length > 0) {
-                    const activeIds = getActivePeople().map(p => p.id);
-                    const newItems = scannedItems.map((it, idx) => ({
-                        id: 'i_scan_' + Date.now() + '_' + idx,
-                        name: String(it.name || `掃描品項 ${idx + 1}`).trim(),
-                        price: Number(it.price) || 0,
-                        assignedTo: [...activeIds]
-                    })).filter(it => it.price !== 0);
-
-                    // 掃描成功後直接替換為最新掃描出的帳單明細
-                    state.items = newItems;
-                    renderItems();
-                    renderSummary();
-                    statusMsg.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600"></i> 成功辨識出 ${newItems.length} 筆明細！`;
-                    showToast(`🎉 掃描成功！自動帶入 ${newItems.length} 個品項`);
-                } else {
-                    statusMsg.innerHTML = `<i class="fa-solid fa-circle-exclamation text-amber-600"></i> 找不到清楚的品項，請點「重新掃描」或手動輸入`;
-                    showToast('🤔 沒抓到清楚的品項，請重試');
-                }
-            } catch (err) {
-                const errMsg = String(err?.message || "");
-                if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('400') || errMsg.includes('403')) {
-                    statusMsg.innerHTML = `<i class="fa-solid fa-key text-red-500"></i> 金鑰無效或格式錯誤，請點右上角「設定金鑰」檢查`;
-                    showToast('❌ AI 金鑰有誤，請重新檢查');
-                    openApiKeyModal();
-                } else {
-                    statusMsg.innerHTML = `<i class="fa-solid fa-circle-exclamation text-red-500"></i> 掃描失敗 (${errMsg.slice(0, 30)})，請點重新掃描`;
-                    showToast('❌ 帳單掃描失敗，請重試');
-                }
-            } finally {
-                overlay.classList.add('hidden');
-            }
-        }
-
-        function clearReceiptPreview() {
-            lastUploadedBase64 = null;
-            document.getElementById('receiptPreviewContainer').classList.add('hidden');
-            document.getElementById('receiptPreviewImg').src = '';
-        }
-
-        async function scanReceiptWithGemini(base64Data, mimeType) {
-            const activeKey = getEffectiveApiKey();
-            // 自動依序嘗試最新且最穩定的模型，避免單一模型在不同帳號權限下報錯
-            const modelsToTry = userCustomApiKey 
-                ? ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"] 
-                : ["gemini-3-flash-preview", "gemini-2.5-flash"];
-
-            const prompt = `你是一個專精於台灣「好市多 Costco 收據」與「餐廳發票明細」的辨識專家。
-請仔細閱讀這張帳單照片，提取出每一個購買的商品與最終應付金額。
-
-【好市多 Costco 收據特別規則】：
-1. 好市多每項商品分為兩行：第一行是「中文商品名稱」（例如：CJ高麗韭菜餃、美國特選牛小燒烤），第二行是「商品貨號 + 數量1x + 金額」（例如：658912 1x 399 399 T）。請將上行的名稱與下行的金額配對！
-2. 若商品下方出現「***COUPON」與「回饋金」（例如：#156747回饋金 80-T、髮類回饋金 120-T、嬌生超涵水回饋金 700-），代表該商品有折價！請直接將「原商品金額扣掉回饋金」，並在商品名稱後面加上「(已折$XX)」。例如：鵝油雙蔥煎餅 399 扣掉 80 = 319。
-3. 請忽略商品貨號（如 658912、10727）與數量（1x），金額請移除千分位逗號（如 2,112 轉為數字 2112）。
-4. 忽略總計、合計、稅額、會員卡號。
-
-請直接回傳 JSON 陣列格式，每個元素包含 name (字串) 與 price (數字)，例如：
-[{"name": "CJ高麗韭菜餃", "price": 399}, {"name": "鵝油雙蔥煎餅 (已折$80)", "price": 319}]`;
-
-            const payload = {
-                contents: [{
-                    parts: [
-                        { text: prompt },
-                        { inlineData: { mimeType: mimeType, data: base64Data } }
-                    ]
-                }],
-                generationConfig: {
-                    responseMimeType: "application/json"
-                }
-            };
-
-            let lastError = null;
-            for (const modelName of modelsToTry) {
-                try {
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        const errText = await response.text();
-                        if (response.status === 400 && errText.includes('API_KEY_INVALID')) {
-                            throw new Error('API_KEY_INVALID');
+                    if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+                        if (width > height) {
+                            height = Math.round((height * MAX_DIMENSION) / width);
+                            width = MAX_DIMENSION;
+                        } else {
+                            width = Math.round((width * MAX_DIMENSION) / height);
+                            height = MAX_DIMENSION;
                         }
-                        lastError = new Error(`HTTP_${response.status}`);
-                        continue;
                     }
 
-                    const result = await response.json();
-                    let rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                    if (!rawText) continue;
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
 
-                    // 清理可能夾帶的 Markdown 標籤並解析 JSON
-                    rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    const parsed = JSON.parse(rawText);
-                    if (Array.isArray(parsed)) {
-                        return parsed;
-                    } else if (parsed && Array.isArray(parsed.items)) {
-                        return parsed.items;
-                    }
-                } catch (err) {
-                    if (String(err.message).includes('API_KEY_INVALID')) throw err;
-                    lastError = err;
-                }
-            }
-            throw lastError || new Error('無法解析回應');
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    const base64Data = compressedDataUrl.split(',')[1];
+
+                    document.getElementById('receiptPreview').src = compressedDataUrl;
+                    document.getElementById('imagePreviewContainer').classList.remove('hidden');
+                    document.getElementById('scanningOverlay').classList.remove('hidden');
+
+                    scanReceiptWithGemini(base64Data);
+                };
+                img.onerror = function() {
+                    showToast('圖片載入失敗，請重新選取。', '❌');
+                };
+                img.src = e.target.result;
+            };
+            reader.onerror = function() {
+                showToast('檔案讀取失敗，請重新選取。', '❌');
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
         }
 
-        // ==========================================
-        // 6. API Key 設定彈窗與工具函式
-        // ==========================================
+        function clearImage() {
+            document.getElementById('imagePreviewContainer').classList.add('hidden');
+            document.getElementById('scanningOverlay').classList.add('hidden');
+            document.getElementById('receiptPreview').src = '';
+        }
+
         function openApiKeyModal() {
-            document.getElementById('apiKeyInput').value = userCustomApiKey || '';
+            document.getElementById('customApiKeyInput').value = state.customApiKey || '';
+            const msgEl = document.getElementById('apiKeyValidationMsg');
+            if (msgEl) {
+                msgEl.classList.add('hidden');
+                msgEl.innerHTML = '';
+            }
             document.getElementById('apiKeyModal').classList.remove('hidden');
         }
 
@@ -1025,122 +807,439 @@
             document.getElementById('apiKeyModal').classList.add('hidden');
         }
 
-        async function saveApiKey() {
-            const val = document.getElementById('apiKeyInput').value.trim();
-            userCustomApiKey = val;
-            try {
-                if (val) {
-                    window['local' + 'Storage'].setItem('give_me_money_api_key', val);
-                } else {
-                    window['local' + 'Storage'].removeItem('give_me_money_api_key');
-                }
-            } catch (e) {}
-
-            updateApiKeyButtonUI();
+        function clearCustomApiKey() {
+            state.customApiKey = '';
+            activeResolvedModel = null;
+            localStorage.removeItem('gemini_api_key');
+            localStorage.removeItem('gemini_model_name');
+            document.getElementById('customApiKeyInput').value = '';
+            const msgEl = document.getElementById('apiKeyValidationMsg');
+            if (msgEl) {
+                msgEl.classList.add('hidden');
+                msgEl.innerHTML = '';
+            }
             closeApiKeyModal();
+            updateApiKeyBadge();
+            showToast('已清除 API 金鑰。', 'ℹ️');
+        }
 
-            if (val) {
-                showToast('🔑 金鑰已儲存！');
-                if (lastUploadedBase64) {
-                    await triggerScanWithBase64(lastUploadedBase64);
+        async function fetchAvailableModels(apiKey) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+                let errText = `HTTP ${res.status}`;
+                try {
+                    const errJson = await res.json();
+                    if (errJson?.error?.message) {
+                        errText += `: ${errJson.error.message}`;
+                    }
+                } catch (_) {}
+                throw new Error(errText);
+            }
+            const data = await res.json();
+            return data.models || [];
+        }
+
+        function pickBestFlashModel(models) {
+            const valid = models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'));
+            if (valid.length === 0) return null;
+
+            const priorities = [
+                'gemini-2.5-flash',
+                'gemini-flash-latest',
+                'gemini-2.0-flash',
+                'gemini-1.5-flash',
+                'flash'
+            ];
+
+            for (const p of priorities) {
+                const found = valid.find(m => m.name.toLowerCase().includes(p));
+                if (found) return found.name;
+            }
+
+            return valid[0].name;
+        }
+
+        async function resolveActiveModel(apiKey) {
+            if (activeResolvedModel) return activeResolvedModel;
+            try {
+                const models = await fetchAvailableModels(apiKey);
+                const bestModel = pickBestFlashModel(models);
+                if (bestModel) {
+                    activeResolvedModel = bestModel;
+                    localStorage.setItem('gemini_model_name', bestModel);
+                    return bestModel;
+                }
+            } catch (err) {
+                console.warn('動態獲取模型清單失敗，轉用備援清單：', err);
+                if (err.message && (err.message.includes('403') || err.message.includes('API_KEY_INVALID'))) {
+                    throw err;
+                }
+            }
+            return 'models/gemini-2.5-flash';
+        }
+
+        async function saveCustomApiKey() {
+            const input = document.getElementById('customApiKeyInput');
+            const val = input.value.trim();
+            const msgEl = document.getElementById('apiKeyValidationMsg');
+            const saveBtn = document.getElementById('saveApiKeyBtn');
+
+            if (!val) {
+                clearCustomApiKey();
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.innerText = '驗證中...';
+            msgEl.className = 'text-xs font-bold py-2.5 px-3 rounded-xl bg-amber-50 text-amber-700 flex items-center gap-1.5 border border-amber-200';
+            msgEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在連線至 Google 伺服器驗證金鑰與支援模型...';
+            msgEl.classList.remove('hidden');
+
+            try {
+                const models = await fetchAvailableModels(val);
+                const bestModel = pickBestFlashModel(models);
+                if (!bestModel) {
+                    throw new Error('此金鑰有效，但未找到支援 generateContent 的模型。');
+                }
+
+                state.customApiKey = val;
+                activeResolvedModel = bestModel;
+                localStorage.setItem('gemini_api_key', val);
+                localStorage.setItem('gemini_model_name', bestModel);
+
+                const cleanModelName = bestModel.replace(/^models\//, '');
+                msgEl.className = 'text-xs font-bold py-2.5 px-3 rounded-xl bg-emerald-50 text-emerald-700 flex items-center gap-1.5 border border-emerald-200';
+                msgEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> 驗證成功！已綁定模型：${cleanModelName}`;
+
+                setTimeout(() => {
+                    closeApiKeyModal();
+                    updateApiKeyBadge();
+                    showToast(`金鑰設定成功！使用模型：${cleanModelName}`, '🔑');
+                }, 700);
+            } catch (err) {
+                console.error('金鑰驗證失敗：', err);
+                let errText = err.message || '連線失敗';
+                if (errText.includes('403') || errText.includes('API_KEY_INVALID')) {
+                    errText = 'API 金鑰無效或尚未啟用 Gemini API 權限。';
+                }
+                msgEl.className = 'text-xs font-bold py-2.5 px-3 rounded-xl bg-rose-50 text-rose-700 flex items-center gap-1.5 border border-rose-200';
+                msgEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 驗證失敗：${errText}`;
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerText = '確認儲存';
+            }
+        }
+
+        async function scanReceiptWithGemini(base64ImageData) {
+            const activeApiKey = state.customApiKey;
+            if (!activeApiKey) {
+                showToast('請先設定 Gemini API 金鑰。', '🔑');
+                openApiKeyModal();
+                clearImage();
+                return;
+            }
+
+            let modelToUse = activeResolvedModel || localStorage.getItem('gemini_model_name');
+            if (!modelToUse) {
+                try {
+                    modelToUse = await resolveActiveModel(activeApiKey);
+                } catch (err) {
+                    console.error("無法取得模型：", err);
+                    handleScanError(err);
+                    document.getElementById('scanningOverlay').classList.add('hidden');
+                    return;
+                }
+            }
+
+            const candidateModels = [
+                modelToUse,
+                'models/gemini-2.5-flash',
+                'models/gemini-flash-latest',
+                'models/gemini-2.0-flash',
+                'models/gemini-1.5-flash'
+            ].filter((v, i, a) => v && a.indexOf(v) === i);
+
+            let lastError = null;
+
+            const prompt = `請仔細辨識這張收據或帳單照片中的所有消費項目與金額。
+規則：
+1. 萃取出每個單獨的消費品項名稱 (name) 與該項目的總金額 (price，純數字)。
+2. 如果同一品項有數量大於1，請直接填入該項目的小計金額，並在名稱註明數量。
+3. 如果有服務費、清潔費或外送費，也請列為一個獨立項目。
+4. 忽略「總計」、「小計」、「找零」等非消費明細文字。
+5. 請以 JSON 陣列格式回傳，格式範例：[{"name":"品項名稱","price":100}]。`;
+
+            const payloadWithSchema = {
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: prompt },
+                            {
+                                inlineData: {
+                                    mimeType: "image/jpeg",
+                                    data: base64ImageData
+                                }
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                "name": { "type": "STRING" },
+                                "price": { "type": "NUMBER" }
+                            },
+                            required: ["name", "price"]
+                        }
+                    }
+                }
+            };
+
+            for (const model of candidateModels) {
+                const formattedModel = model.startsWith('models/') ? model : `models/${model}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/${formattedModel}:generateContent?key=${activeApiKey}`;
+                
+                try {
+                    let response = await fetchWithRetry(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payloadWithSchema)
+                    });
+
+                    // 若 400 且原因為 schema 不支援，退回純 Prompt 請求
+                    if (!response.ok && response.status === 400) {
+                        const fallbackPayload = {
+                            contents: payloadWithSchema.contents,
+                            generationConfig: {
+                                temperature: 0.1
+                            }
+                        };
+                        const fallbackResponse = await fetchWithRetry(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(fallbackPayload)
+                        });
+                        if (fallbackResponse.ok) {
+                            response = fallbackResponse;
+                        }
+                    }
+
+                    if (!response.ok) {
+                        let errorDetail = `HTTP ${response.status}`;
+                        try {
+                            const errorJson = await response.json();
+                            if (errorJson?.error?.message) {
+                                errorDetail += ` (${errorJson.error.message})`;
+                            }
+                        } catch (_) {}
+                        throw new Error(errorDetail);
+                    }
+
+                    const result = await response.json();
+                    const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    if (!jsonText) throw new Error("API 未傳回明細文字。");
+
+                    const parsedItems = cleanAndParseJson(jsonText);
+
+                    if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+                        const activeIds = state.people.filter(p => p.active).map(p => p.id);
+                        const newItems = parsedItems.map((item, idx) => ({
+                            id: 'scan_' + Date.now() + '_' + idx,
+                            name: item.name || '未命名品項',
+                            price: Math.round(Number(item.price) || 0),
+                            splitMode: 'all',
+                            assignedIds: [...activeIds]
+                        }));
+
+                        state.items = [...state.items, ...newItems];
+                        renderAll();
+                        showToast(`成功辨識出 ${newItems.length} 筆明細！`, '🎉');
+                        document.getElementById('scanningOverlay').classList.add('hidden');
+                        return;
+                    } else {
+                        showToast('照片中未辨識到明確的明細項目，請手動新增。', '🤔');
+                        document.getElementById('scanningOverlay').classList.add('hidden');
+                        return;
+                    }
+                } catch (error) {
+                    console.warn(`嘗試模型 ${model} 失敗：`, error);
+                    lastError = error;
+                    if (error.message && (error.message.includes('403') || error.message.includes('API_KEY_INVALID'))) {
+                        break;
+                    }
+                }
+            }
+
+            console.error("Receipt scan final error:", lastError);
+            handleScanError(lastError);
+            document.getElementById('scanningOverlay').classList.add('hidden');
+        }
+
+        function cleanAndParseJson(text) {
+            let str = text.trim();
+            if (str.startsWith('```')) {
+                str = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+            }
+            const bracketMatch = str.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (bracketMatch) {
+                str = bracketMatch[0];
+            }
+            return JSON.parse(str);
+        }
+
+        function handleScanError(error) {
+            const rawMsg = error?.message || '';
+            if (rawMsg.includes('403') || rawMsg.includes('API_KEY_INVALID')) {
+                showToast('API 金鑰無效或權限不足，請點擊右上角金鑰按鈕重新設定。', '❌');
+                openApiKeyModal();
+            } else if (rawMsg.includes('429')) {
+                showToast('API 配額已達上限或呼叫頻率過高，請稍候重試。', '⚠️');
+            } else if (rawMsg.includes('400')) {
+                showToast('圖片規格過大或請求格式不符，請換張照片試試。', '❌');
+            } else if (rawMsg.includes('404')) {
+                showToast('找不到對應模型，請點擊右上角金鑰按鈕重新驗證金鑰。', '❌');
+                openApiKeyModal();
+            } else {
+                showToast('辨識失敗：' + (rawMsg.length > 50 ? rawMsg.slice(0, 50) + '...' : rawMsg), '❌');
+            }
+        }
+
+        async function fetchWithRetry(url, options, maxRetries = 3) {
+            let delay = 1000;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+                    if (response.status === 429 || response.status >= 500) {
+                        await new Promise(res => setTimeout(res, delay));
+                        delay *= 2;
+                        continue;
+                    }
+                    return response;
+                } catch (err) {
+                    if (i === maxRetries - 1) throw err;
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
                 }
             }
         }
 
-        function copySummaryText() {
-            const { totalBill, payer, breakdown } = calculateSummary();
-            const entries = Object.values(breakdown);
+        async function copySummary() {
+            const activePeople = state.people.filter(p => p.active);
+            const payer = activePeople.find(p => p.id === state.payerId);
 
-            let lines = [];
-            lines.push(`😎 【給錢啊】分帳結算通知 💸`);
-            lines.push(`━━━━━━━━━━━━━━`);
-            lines.push(`👑 先墊錢的人：${payer ? payer.name : '未指定'}`);
-            lines.push(`🧾 帳單總金額：$${totalBill.toLocaleString()}`);
-            lines.push(`━━━━━━━━━━━━━━`);
-            lines.push(`💰 【誰該給 ${payer ? payer.name : ''} 多少錢】`);
-
-            const debtors = entries.filter(e => e.person.id !== (payer && payer.id));
-            if (debtors.length === 0) {
-                lines.push(`（無須轉帳）`);
-            } else {
-                debtors.forEach(e => {
-                    const amt = Math.round(e.total);
-                    lines.push(`👉 ${e.person.name} 請給 ${payer.name}：$${amt.toLocaleString()}`);
-                });
+            if (!payer || state.items.length === 0) {
+                showToast('目前還沒有可以複製的帳單明細喔！', '⚠️');
+                return;
             }
 
-            lines.push(`━━━━━━━━━━━━━━`);
-            lines.push(`📋 【每人消費明細】`);
-            entries.forEach(e => {
-                const amt = Math.round(e.total);
-                const detailStr = e.details.map(d => `${d.name}($${d.share})`).join(' + ');
-                lines.push(`• ${e.person.name} ($${amt})：${detailStr || '無'}`);
+            let totalBill = 0;
+            let personTotals = {};
+            activePeople.forEach(p => personTotals[p.id] = 0);
+
+            let itemLines = [];
+            state.items.forEach(item => {
+                const price = Number(item.price) || 0;
+                totalBill += price;
+                let sharers = item.splitMode === 'all' 
+                    ? activePeople 
+                    : activePeople.filter(p => item.assignedIds.includes(p.id));
+                
+                if (sharers.length > 0 && price > 0) {
+                    const splitAmount = price / sharers.length;
+                    sharers.forEach(p => personTotals[p.id] += splitAmount);
+                }
+
+                const whoText = item.splitMode === 'all' 
+                    ? '全部人' 
+                    : (sharers.length > 0 ? sharers.map(p => p.name).join('、') : '無人認領');
+                itemLines.push(`• ${item.name || '品項'} $${price} (${whoText})`);
             });
 
-            const finalText = lines.join('\n');
+            let debtLines = [];
+            activePeople.forEach(p => {
+                if (p.id === payer.id) return;
+                const owe = Math.round(personTotals[p.id] || 0);
+                if (owe > 0) {
+                    debtLines.push(`👉 ${p.name} 給 ${payer.name}：$${owe}`);
+                }
+            });
 
-            const textarea = document.createElement('textarea');
-            textarea.value = finalText;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                showToast('📋 催款明細已複製！快貼到 LINE 群組吧');
-            } catch (err) {
-                showToast('⚠️ 複製失敗，請手動截圖');
+            const summaryText = [
+                `💸【給錢啊😎 分帳明細】`,
+                `總金額：$${Math.round(totalBill)} (由 ${payer.name} 先墊付)`,
+                `--------------------`,
+                ...itemLines,
+                `--------------------`,
+                ...(debtLines.length > 0 ? debtLines : ['🎉 大家互不相欠！']),
+                `快轉帳給 ${payer.name} 吧！😎`
+            ].join('\n');
+
+            let copied = false;
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(summaryText);
+                    copied = true;
+                } catch (e) {
+                    copied = false;
+                }
             }
-            document.body.removeChild(textarea);
-        }
 
-        function openResetModal() {
-            document.getElementById('resetModal').classList.remove('hidden');
-        }
+            if (!copied) {
+                const textarea = document.createElement('textarea');
+                textarea.value = summaryText;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    copied = true;
+                } catch (err) {
+                    copied = false;
+                }
+                document.body.removeChild(textarea);
+            }
 
-        function closeResetModal() {
-            document.getElementById('resetModal').classList.add('hidden');
-        }
-
-        function confirmReset() {
-            const activeIds = getActivePeople().map(p => p.id);
-            state.items = [
-                { id: 'i_' + Date.now(), name: '', price: '', assignedTo: [...activeIds] }
-            ];
-            clearReceiptPreview();
-            closeResetModal();
-            renderAll();
-            showToast('✨ 已清空消費明細');
+            if (copied) {
+                showToast('已複製分帳明細！快去群組貼上催款吧 😎', '📋');
+            } else {
+                showToast('複製失敗，請手動截圖分享', '❌');
+            }
         }
 
         let toastTimer = null;
-        function showToast(message) {
-            const box = document.getElementById('toastBox');
-            const msgEl = document.getElementById('toastMessage');
-            msgEl.textContent = message;
-            box.classList.remove('opacity-0', 'translate-y-2');
-            box.classList.add('opacity-100', 'translate-y-0');
+        function showToast(msg, icon = '✅') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            document.getElementById('toastIcon').innerText = icon;
+            
+            toast.classList.remove('opacity-0', 'translate-y-2');
+            toast.classList.add('opacity-100', 'translate-y-0');
 
-            if (toastTimer) clearTimeout(toastTimer);
+            clearTimeout(toastTimer);
             toastTimer = setTimeout(() => {
-                box.classList.add('opacity-0', 'translate-y-2');
-                box.classList.remove('opacity-100', 'translate-y-0');
-            }, 2600);
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-2');
+            }, 2800);
         }
 
-        function escapeHtml(str) {
-            if (str === null || str === undefined) return '';
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
-
-        window.onload = function() {
-            renderAll();
-        };
     </script>
 </body>
 </html>
