@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>給錢啊😎 - 智慧拍照分帳神器</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts: Noto Sans TC & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- 引入 FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* 自訂捲軸 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        /* 掃描動畫 */
+        @keyframes scanline {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
+        }
+        .scan-overlay::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, #f59e0b, #ef4444, transparent);
+            box-shadow: 0 0 12px #f59e0b;
+            animation: scanline 2s linear infinite;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased pb-24">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <span class="text-3xl">💸</span>
+                <div>
+                    <h1 class="text-2xl font-black tracking-tight flex items-center">
+                        給錢啊<span class="ml-1 text-2xl">😎</span>
+                    </h1>
+                    <p class="text-xs text-amber-100 font-medium">拍照秒拆帳，感情不會散</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openApiKeyModal()" title="設定 AI 掃描金鑰" class="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1 backdrop-blur-sm">
+                    <i class="fa-solid fa-key"></i> <span class="hidden sm:inline">AI 金鑰</span>
+                </button>
+                <button onclick="resetAll()" class="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1 backdrop-blur-sm">
+                    <i class="fa-solid fa-rotate-right"></i> 重置
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- API Key 設定彈窗 -->
+    <div id="apiKeyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-key text-amber-500"></i> 設定 Gemini API 金鑰
+                </h3>
+                <button onclick="closeApiKeyModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 leading-relaxed">
+                若要使用 <strong>AI 拍照辨識帳單</strong> 功能，請填入您的免費 Google Gemini API Key（純手動分帳則不需設定）。
+            </p>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">您的 Gemini API Key</label>
+                <input type="password" id="customApiKeyInput" placeholder="貼上 AIzaSy 開頭的金鑰..."
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="inline-block text-[11px] font-bold text-blue-600 hover:underline mt-2">
+                    <i class="fa-solid fa-up-right-from-square mr-1"></i>點此免費申請 Google Gemini API Key
+                </a>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeApiKeyModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm transition">
+                    取消
+                </button>
+                <button onclick="saveCustomApiKey()" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm transition">
+                    確認儲存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主內容區 -->
+    <main class="max-w-xl mx-auto px-4 pt-5 space-y-5">
+
+        <!-- 區塊 1：參與人員與先墊錢設定 -->
+        <section class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-black">1</span>
+                    這次有誰參加？
+                </h2>
+                <button onclick="toggleAddPerson()" class="text-xs font-bold text-amber-600 hover:text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg transition">
+                    <i class="fa-solid fa-user-plus mr-1"></i>加新朋友
+                </button>
+            </div>
+
+            <!-- 新增人員輸入框 (預設隱藏) -->
+            <div id="addPersonBox" class="hidden flex gap-2">
+                <input type="text" id="newPersonName" placeholder="輸入名字 (例如: 豪)" maxlength="6"
+                    class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <button onclick="addNewPerson()" class="bg-slate-800 text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-slate-700 transition">
+                    新增
+                </button>
+            </div>
+
+            <!-- 人員勾選列表 -->
+            <div id="participantsList" class="flex flex-wrap gap-2.5">
+                <!-- 由 JS 動態生成 -->
+            </div>
+
+            <hr class="border-slate-100">
+
+            <!-- 誰先出錢 -->
+            <div>
+                <h2 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-3">
+                    <span class="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-black">2</span>
+                    一開始誰先刷卡/付現？
+                </h2>
+                <div id="payerList" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    <!-- 由 JS 動態生成 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- 區塊 2：帳單拍照掃描 -->
+        <section class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-black">3</span>
+                    帳單掃描 & 明細
+                </h2>
+                <span class="text-xs text-slate-400 font-medium">支援 AI 自動辨識</span>
+            </div>
+
+            <!-- 相機拍照與上傳按鈕區 -->
+            <div class="grid grid-cols-2 gap-3">
+                <!-- 呼叫手機相機拍照 -->
+                <label class="cursor-pointer bg-gradient-to-br from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 shadow-md transition active:scale-95">
+                    <div class="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-camera"></i>
+                    </div>
+                    <span class="text-sm font-bold">相機拍帳單</span>
+                    <input type="file" accept="image/*" capture="environment" class="hidden" onchange="handleImageUpload(event)">
+                </label>
+
+                <!-- 從相簿選擇 -->
+                <label class="cursor-pointer bg-slate-50 hover:bg-slate-100 border-2 border-dashed border-slate-300 text-slate-700 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 transition active:scale-95">
+                    <div class="w-10 h-10 rounded-full bg-slate-200/70 flex items-center justify-center text-xl text-slate-600">
+                        <i class="fa-solid fa-image"></i>
+                    </div>
+                    <span class="text-sm font-bold">相簿選照片</span>
+                    <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                </label>
+            </div>
+
+            <!-- 圖片預覽與掃描狀態 -->
+            <div id="imagePreviewContainer" class="hidden relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900">
+                <img id="receiptPreview" src="" alt="帳單預覽" class="w-full max-h-56 object-contain mx-auto opacity-90">
+                <!-- 掃描中遮罩 -->
+                <div id="scanningOverlay" class="hidden absolute inset-0 bg-slate-900/75 backdrop-blur-xs flex flex-col items-center justify-center text-white scan-overlay">
+                    <i class="fa-solid fa-wand-magic-sparkles text-3xl text-amber-400 animate-bounce mb-2"></i>
+                    <p class="font-bold text-sm tracking-wider">AI 正在努力辨識帳單明細...</p>
+                    <p class="text-xs text-slate-300 mt-1">請稍候幾秒鐘</p>
+                </div>
+                <button onclick="clearImage()" class="absolute top-2 right-2 bg-black/60 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/80 transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- 消費明細列表 -->
+            <div class="space-y-3 pt-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">消費項目清單 (<span id="itemCount">0</span>)</span>
+                    <button onclick="addEmptyItem()" class="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-xl transition flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> 手動加一筆
+                    </button>
+                </div>
+
+                <!-- 明細卡片容器 -->
+                <div id="itemsContainer" class="space-y-3">
+                    <!-- 由 JS 動態生成 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- 區塊 3：最終結算結果 -->
+        <section class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white rounded-3xl p-6 shadow-xl space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-700/80 pb-4">
+                <div>
+                    <h2 class="text-lg font-black flex items-center gap-2">
+                        <span>💰</span> 結算：誰該給誰多少錢
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">已自動四捨五入至整數</p>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-slate-400 block">帳單總金額</span>
+                    <span class="text-2xl font-black text-amber-400">$<span id="totalAmount">0</span></span>
+                </div>
+            </div>
+
+            <!-- 轉帳指令卡片 -->
+            <div id="settlementList" class="space-y-3">
+                <!-- 由 JS 動態生成 -->
+            </div>
+
+            <!-- 個人消費明細折疊區 -->
+            <div class="pt-2">
+                <details class="group">
+                    <summary class="text-xs font-bold text-slate-400 hover:text-white cursor-pointer flex items-center justify-between py-2 select-none">
+                        <span><i class="fa-solid fa-receipt mr-1.5"></i>查看每個人各自點了多少錢</span>
+                        <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
+                    </summary>
+                    <div id="individualBreakdown" class="mt-2 space-y-2 bg-slate-800/60 rounded-2xl p-3.5 text-sm">
+                        <!-- 由 JS 動態生成 -->
+                    </div>
+                </details>
+            </div>
+
+            <!-- 複製結果按鈕 -->
+            <button onclick="copySummary()" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 active:scale-[0.99] text-slate-950 font-black py-3.5 px-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2 text-base">
+                <i class="fa-regular fa-copy"></i> 複製催款明細貼到 LINE 群組
+            </button>
+        </section>
+
+    </main>
+
+    <!-- 隱藏的 Canvas 用於壓縮圖片以加快 AI 辨識 -->
+    <canvas id="compressCanvas" class="hidden"></canvas>
+
+    <!-- 自訂提示訊息 Toast -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl text-sm font-bold flex items-center gap-2.5 opacity-0 pointer-events-none transition-all duration-300 z-50 border border-slate-700">
+        <span id="toastIcon">✅</span>
+        <span id="toastMsg">已複製到剪貼簿！</span>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 狀態管理 (State)
+        // ==========================================
+        const DEFAULT_PEOPLE = [
+            { id: 'p_yu', name: '煜', active: true, color: 'bg-amber-500' },
+            { id: 'p_shan', name: '珊', active: true, color: 'bg-rose-500' },
+            { id: 'p_jie', name: '杰', active: true, color: 'bg-blue-500' }
+        ];
+
+        const AVATAR_COLORS = [
+            'bg-amber-500', 'bg-rose-500', 'bg-blue-500', 
+            'bg-emerald-500', 'bg-purple-500', 'bg-cyan-500', 'bg-indigo-500'
+        ];
+
+        let state = {
+            customApiKey: '',
+            people: JSON.parse(JSON.stringify(DEFAULT_PEOPLE)),
+            payerId: 'p_yu',
+            items: [
+                {
+                    id: 'item_1',
+                    name: '招牌豪華拼盤',
+                    price: 450,
+                    splitMode: 'all',
+                    assignedIds: ['p_yu', 'p_shan', 'p_jie']
+                },
+                {
+                    id: 'item_2',
+                    name: '冰美式咖啡',
+                    price: 120,
+                    splitMode: 'custom',
+                    assignedIds: ['p_shan']
+                }
+            ]
+        };
+
+        // ==========================================
+        // 2. 初始化與核心渲染邏輯
+        // ==========================================
+        window.onload = function() {
+            renderAll();
+        };
+
+        function renderAll() {
+            ensureValidPayer();
+            renderParticipants();
+            renderPayers();
+            renderItems();
+            calculateAndRenderSettlement();
+        }
+
+        function ensureValidPayer() {
+            const activePeople = state.people.filter(p => p.active);
+            if (activePeople.length === 0) {
+                state.payerId = null;
+                return;
+            }
+            const isPayerActive = activePeople.some(p => p.id === state.payerId);
+            if (!isPayerActive) {
+                state.payerId = activePeople[0].id;
+            }
+        }
+
+        function renderParticipants() {
+            const container = document.getElementById('participantsList');
+            container.innerHTML = '';
+
+            state.people.forEach(person => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => toggleParticipant(person.id);
+                
+                if (person.active) {
+                    btn.className = `flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition shadow-xs border-2 border-slate-800 bg-slate-800 text-white active:scale-95`;
+                    btn.innerHTML = `
+                        <span class="w-5 h-5 rounded-full ${person.color} text-white text-xs flex items-center justify-center font-black">${person.name[0]}</span>
+                        <span>${person.name}</span>
+                        <i class="fa-solid fa-circle-check text-amber-400 ml-0.5"></i>
+                    `;
+                } else {
+                    btn.className = `flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition border-2 border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-100 active:scale-95`;
+                    btn.innerHTML = `
+                        <span class="w-5 h-5 rounded-full bg-slate-300 text-white text-xs flex items-center justify-center font-black">${person.name[0]}</span>
+                        <span>${person.name}</span>
+                        <i class="fa-regular fa-circle ml-0.5"></i>
+                    `;
+                }
+                container.appendChild(btn);
+            });
+        }
+
+        function renderPayers() {
+            const container = document.getElementById('payerList');
+            container.innerHTML = '';
+            const activePeople = state.people.filter(p => p.active);
+
+            if (activePeople.length === 0) {
+                container.innerHTML = `<p class="col-span-full text-xs text-rose-500 font-bold py-2">請至少選擇一位參加人員！</p>`;
+                return;
+            }
+
+            activePeople.forEach(person => {
+                const isSelected = state.payerId === person.id;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => {
+                    state.payerId = person.id;
+                    renderAll();
+                };
+
+                if (isSelected) {
+                    btn.className = `flex flex-col items-center justify-center p-3 rounded-2xl border-2 border-rose-500 bg-rose-50 text-rose-700 font-black text-sm shadow-xs transition active:scale-95`;
+                    btn.innerHTML = `
+                        <div class="flex items-center gap-1.5">
+                            <i class="fa-solid fa-wallet text-rose-500"></i>
+                            <span>${person.name}</span>
+                        </div>
+                        <span class="text-[10px] font-bold text-rose-500 mt-0.5">先墊錢</span>
+                    `;
+                } else {
+                    btn.className = `flex flex-col items-center justify-center p-3 rounded-2xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold text-sm transition active:scale-95`;
+                    btn.innerHTML = `
+                        <span>${person.name}</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">點擊切換</span>
+                    `;
+                }
+                container.appendChild(btn);
+            });
+        }
+
+        function renderItems() {
+            const container = document.getElementById('itemsContainer');
+            document.getElementById('itemCount').innerText = state.items.length;
+            container.innerHTML = '';
+
+            const activePeople = state.people.filter(p => p.active);
+
+            if (state.items.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <p class="text-slate-400 text-sm font-medium">目前還沒有消費明細喔！</p>
+                        <p class="text-slate-400 text-xs mt-1">可以點擊上方「相機拍帳單」或「手動加一筆」</p>
+                    </div>
+                `;
+                return;
+            }
+
+            state.items.forEach((item, index) => {
+                const validAssigned = item.assignedIds.filter(id => activePeople.some(p => p.id === id));
+                
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-amber-300/80 space-y-3.5 transition-all duration-200';
+                
+                let splitCount = item.splitMode === 'all' ? activePeople.length : validAssigned.length;
+                let perPersonText = splitCount > 0 && item.price > 0 
+                    ? `每人 <span class="text-slate-800 font-black">$${Math.round(item.price / splitCount).toLocaleString()}</span>` 
+                    : '<span class="text-rose-500">尚未指定分攤人</span>';
+
+                let peopleButtonsHtml = '';
+                activePeople.forEach(p => {
+                    const isChecked = item.splitMode === 'all' || validAssigned.includes(p.id);
+                    const btnStyle = isChecked 
+                        ? `${p.color} text-white border-transparent shadow-xs` 
+                        : `bg-white text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600`;
+                    
+                    peopleButtonsHtml += `
+                        <button type="button" onclick="toggleItemPerson('${item.id}', '${p.id}')"
+                            class="px-3.5 py-1.5 rounded-xl text-xs font-bold border transition active:scale-95 flex items-center gap-1.5 ${btnStyle}">
+                            <span>${p.name}</span>
+                            ${isChecked ? '<i class="fa-solid fa-check text-[10px]"></i>' : ''}
+                        </button>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <!-- 欄位優化：品項名稱獨立整排，超寬顯示 -->
+                    <div class="space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                                <span class="w-5 h-5 rounded-md bg-amber-500/15 text-amber-600 font-black flex items-center justify-center">${index + 1}</span>
+                                品項名稱
+                            </span>
+                            <button type="button" onclick="deleteItem('${item.id}')" title="刪除項目"
+                                class="text-slate-300 hover:text-rose-500 text-xs px-2 py-1 transition flex items-center gap-1">
+                                <i class="fa-solid fa-trash-can"></i> 刪除
+                            </button>
+                        </div>
+                        <input type="text" value="${escapeHtml(item.name)}" placeholder="輸入品項名稱 (例如：無骨牛小排拼盤、招牌珍奶)"
+                            onchange="updateItemField('${item.id}', 'name', this.value)"
+                            class="w-full bg-slate-50/90 hover:bg-slate-100/80 focus:bg-white border border-slate-200 focus:border-amber-500 rounded-2xl px-4 py-3 text-base font-bold text-slate-800 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition">
+                    </div>
+
+                    <!-- 金額與平均分攤提示 -->
+                    <div class="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100">
+                        <div class="flex items-center gap-2.5">
+                            <span class="text-xs font-bold text-slate-500">金額</span>
+                            <div class="relative w-36 sm:w-40">
+                                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-500 font-black">$</span>
+                                <input type="number" inputmode="decimal" value="${item.price === 0 ? '' : item.price}" placeholder="0"
+                                    onchange="updateItemField('${item.id}', 'price', parseFloat(this.value) || 0)"
+                                    class="w-full bg-white border border-slate-200/90 rounded-xl pl-8 pr-3.5 py-2 text-base font-black text-right text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition">
+                            </div>
+                        </div>
+                        <div class="text-xs font-bold text-slate-500 text-right">
+                            ${perPersonText}
+                        </div>
+                    </div>
+
+                    <!-- 誰要分攤 -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+                        <span class="text-xs font-bold text-slate-400 flex items-center gap-1">
+                            <i class="fa-solid fa-users text-slate-300"></i> 分攤對象：
+                        </span>
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <button type="button" onclick="setItemSplitAll('${item.id}')"
+                                class="px-3.5 py-1.5 rounded-xl text-xs font-black transition active:scale-95 ${item.splitMode === 'all' ? 'bg-slate-800 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                                全部人平分
+                            </button>
+                            <span class="text-slate-200 text-xs mx-0.5">|</span>
+                            ${peopleButtonsHtml}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function calculateAndRenderSettlement() {
+            const activePeople = state.people.filter(p => p.active);
+            const settlementContainer = document.getElementById('settlementList');
+            const breakdownContainer = document.getElementById('individualBreakdown');
+            
+            let totalBill = 0;
+            let personTotals = {};
+            activePeople.forEach(p => personTotals[p.id] = 0);
+
+            state.items.forEach(item => {
+                const price = Number(item.price) || 0;
+                totalBill += price;
+
+                let sharers = [];
+                if (item.splitMode === 'all') {
+                    sharers = activePeople.map(p => p.id);
+                } else {
+                    sharers = item.assignedIds.filter(id => activePeople.some(p => p.id === id));
+                }
+
+                if (sharers.length > 0 && price > 0) {
+                    const splitAmount = price / sharers.length;
+                    sharers.forEach(id => {
+                        personTotals[id] = (personTotals[id] || 0) + splitAmount;
+                    });
+                }
+            });
+
+            document.getElementById('totalAmount').innerText = Math.round(totalBill).toLocaleString();
+
+            breakdownContainer.innerHTML = '';
+            if (activePeople.length === 0) {
+                breakdownContainer.innerHTML = '<p class="text-slate-400 text-xs">無參加人員</p>';
+            } else {
+                activePeople.forEach(p => {
+                    const isPayer = p.id === state.payerId;
+                    const amt = Math.round(personTotals[p.id] || 0);
+                    breakdownContainer.innerHTML += `
+                        <div class="flex items-center justify-between py-1 border-b border-slate-700/50 last:border-0">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-full ${p.color} text-white text-[10px] flex items-center justify-center font-black">${p.name[0]}</span>
+                                <span class="font-bold text-slate-200">${p.name}</span>
+                                ${isPayer ? '<span class="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded font-bold">先墊錢</span>' : ''}
+                            </div>
+                            <span class="font-black text-slate-100">$${amt.toLocaleString()}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            settlementContainer.innerHTML = '';
+            const payer = activePeople.find(p => p.id === state.payerId);
+
+            if (!payer || activePeople.length === 0) {
+                settlementContainer.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">請先選擇參加人員與墊錢的人</p>`;
+                return;
+            }
+
+            let hasDebts = false;
+            activePeople.forEach(p => {
+                if (p.id === payer.id) return;
+                const oweAmount = Math.round(personTotals[p.id] || 0);
+                if (oweAmount > 0) {
+                    hasDebts = true;
+                    settlementContainer.innerHTML += `
+                        <div class="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-8 h-8 rounded-full ${p.color} text-white font-black flex items-center justify-center shadow">${p.name[0]}</span>
+                                    <span class="font-black text-base">${p.name}</span>
+                                </div>
+                                <div class="flex flex-col items-center px-1 text-amber-400">
+                                    <span class="text-[10px] font-bold tracking-wider">給錢啊</span>
+                                    <i class="fa-solid fa-arrow-right-long"></i>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-8 h-8 rounded-full ${payer.color} text-white font-black flex items-center justify-center shadow">${payer.name[0]}</span>
+                                    <span class="font-black text-base">${payer.name}</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xl font-black text-emerald-400">$${oweAmount.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            if (!hasDebts) {
+                settlementContainer.innerHTML = `
+                    <div class="bg-white/5 rounded-2xl p-4 text-center text-slate-400 text-sm">
+                        🎉 目前沒有人需要額外付錢給 <strong class="text-white">${payer.name}</strong>！
+                    </div>
+                `;
+            }
+        }
+
+        function toggleParticipant(id) {
+            const person = state.people.find(p => p.id === id);
+            if (!person) return;
+            person.active = !person.active;
+
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
+            state.items.forEach(item => {
+                if (item.splitMode === 'all') {
+                    item.assignedIds = [...activeIds];
+                } else {
+                    item.assignedIds = item.assignedIds.filter(aid => activeIds.includes(aid));
+                }
+            });
+
+            renderAll();
+        }
+
+        function toggleAddPerson() {
+            const box = document.getElementById('addPersonBox');
+            box.classList.toggle('hidden');
+            if (!box.classList.contains('hidden')) {
+                document.getElementById('newPersonName').focus();
+            }
+        }
+
+        function addNewPerson() {
+            const input = document.getElementById('newPersonName');
+            const name = input.value.trim();
+            if (!name) {
+                showToast('請輸入朋友的名字喔！', '⚠️');
+                return;
+            }
+            if (state.people.some(p => p.name === name)) {
+                showToast('這個名字已經在名單裡囉！', '⚠️');
+                return;
+            }
+
+            const color = AVATAR_COLORS[state.people.length % AVATAR_COLORS.length];
+            const newId = 'p_' + Date.now();
+            state.people.push({ id: newId, name: name, active: true, color: color });
+            
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
+            state.items.forEach(item => {
+                if (item.splitMode === 'all') {
+                    item.assignedIds = [...activeIds];
+                }
+            });
+
+            input.value = '';
+            document.getElementById('addPersonBox').classList.add('hidden');
+            renderAll();
+            showToast(`已加入「${name}」！`, '👋');
+        }
+
+        function addEmptyItem() {
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
+            state.items.push({
+                id: 'item_' + Date.now() + Math.random().toString(36).substr(2, 4),
+                name: '',
+                price: 0,
+                splitMode: 'all',
+                assignedIds: [...activeIds]
+            });
+            renderAll();
+        }
+
+        function updateItemField(itemId, field, value) {
+            const item = state.items.find(i => i.id === itemId);
+            if (item) {
+                item[field] = value;
+                renderItems();
+                calculateAndRenderSettlement();
+            }
+        }
+
+        function deleteItem(itemId) {
+            state.items = state.items.filter(i => i.id !== itemId);
+            renderAll();
+        }
+
+        function setItemSplitAll(itemId) {
+            const item = state.items.find(i => i.id === itemId);
+            if (!item) return;
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
+            item.splitMode = 'all';
+            item.assignedIds = [...activeIds];
+            renderItems();
+            calculateAndRenderSettlement();
+        }
+
+        function toggleItemPerson(itemId, personId) {
+            const item = state.items.find(i => i.id === itemId);
+            if (!item) return;
+            const activeIds = state.people.filter(p => p.active).map(p => p.id);
+
+            if (item.splitMode === 'all') {
+                item.splitMode = 'custom';
+                item.assignedIds = activeIds.filter(id => id !== personId);
+            } else {
+                if (item.assignedIds.includes(personId)) {
+                    item.assignedIds = item.assignedIds.filter(id => id !== personId);
+                } else {
+                    item.assignedIds.push(personId);
+                }
+                if (item.assignedIds.length === activeIds.length && activeIds.every(id => item.assignedIds.includes(id))) {
+                    item.splitMode = 'all';
+                }
+            }
+
+            renderItems();
+            calculateAndRenderSettlement();
+        }
+
+        function resetAll() {
+            state.people = JSON.parse(JSON.stringify(DEFAULT_PEOPLE));
+            state.payerId = 'p_yu';
+            state.items = [];
+            clearImage();
+            renderAll();
+            showToast('已清空帳單，準備好開始新的一攤！', '✨');
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.getElementById('compressCanvas');
+                    const MAX_WIDTH = 1024;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > MAX_WIDTH) {
+                        height = Math.round((height * MAX_WIDTH) / width);
+                        width = MAX_WIDTH;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    const base64Data = compressedDataUrl.split(',')[1];
+
+                    document.getElementById('receiptPreview').src = compressedDataUrl;
+                    document.getElementById('imagePreviewContainer').classList.remove('hidden');
+                    document.getElementById('scanningOverlay').classList.remove('hidden');
+
+                    scanReceiptWithGemini(base64Data);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
+        }
+
+        function clearImage() {
+            document.getElementById('imagePreviewContainer').classList.add('hidden');
+            document.getElementById('scanningOverlay').classList.add('hidden');
+            document.getElementById('receiptPreview').src = '';
+        }
+
+        function openApiKeyModal() {
+            document.getElementById('customApiKeyInput').value = state.customApiKey || '';
+            document.getElementById('apiKeyModal').classList.remove('hidden');
+        }
+
+        function closeApiKeyModal() {
+            document.getElementById('apiKeyModal').classList.add('hidden');
+        }
+
+        function saveCustomApiKey() {
+            const val = document.getElementById('customApiKeyInput').value.trim();
+            state.customApiKey = val;
+            closeApiKeyModal();
+            if (val) {
+                showToast('已設定 AI 金鑰！現在可以拍照掃描帳單囉', '🔑');
+            } else {
+                showToast('已清除自訂金鑰', 'ℹ️');
+            }
+        }
+
+        async function scanReceiptWithGemini(base64ImageData) {
+            const defaultApiKey = ""; 
+            const activeApiKey = state.customApiKey || defaultApiKey;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeApiKey}`;
+
+            const prompt = `請仔細辨識這張收據或帳單照片中的所有消費項目與金額。
+規則：
+1. 萃取出每個單獨的消費品項名稱 (name) 與該項目的總金額 (price，純數字)。
+2. 如果同一品項有數量大於1，請直接填入該項目的小計金額，並在名稱註明數量。
+3. 如果有服務費、清潔費或外送費，也請列為一個獨立項目。
+4. 忽略「總計」、「小計」、「找零」等非消費明細文字。
+5. 請以 JSON 陣列格式回傳。`;
+
+            const payload = {
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: prompt },
+                            {
+                                inlineData: {
+                                    mimeType: "image/jpeg",
+                                    data: base64ImageData
+                                }
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                "name": { "type": "STRING" },
+                                "price": { "type": "NUMBER" }
+                            },
+                            required: ["name", "price"]
+                        }
+                    }
+                }
+            };
+
+            try {
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (!jsonText) throw new Error("無法取得辨識結果");
+
+                const parsedItems = JSON.parse(jsonText);
+
+                if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+                    const activeIds = state.people.filter(p => p.active).map(p => p.id);
+                    const newItems = parsedItems.map((item, idx) => ({
+                        id: 'scan_' + Date.now() + '_' + idx,
+                        name: item.name || '未命名品項',
+                        price: Math.round(Number(item.price) || 0),
+                        splitMode: 'all',
+                        assignedIds: [...activeIds]
+                    }));
+
+                    state.items = [...state.items, ...newItems];
+                    renderAll();
+                    showToast(`成功辨識出 ${newItems.length} 筆明細！`, '🎉');
+                } else {
+                    showToast('照片裡好像找不到消費明細，請手動新增喔！', '🤔');
+                }
+            } catch (error) {
+                console.error("Receipt scan error:", error);
+                if (!state.customApiKey) {
+                    showToast('請點擊右上角「AI 金鑰」按鈕設定金鑰喔！', '🔑');
+                    openApiKeyModal();
+                } else {
+                    showToast('帳單辨識失敗，請檢查金鑰或改用手動輸入', '❌');
+                }
+            } finally {
+                document.getElementById('scanningOverlay').classList.add('hidden');
+            }
+        }
+
+        async function fetchWithRetry(url, options, maxRetries = 3) {
+            let delay = 1000;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+                    if (response.status === 429 || response.status >= 500) {
+                        await new Promise(res => setTimeout(res, delay));
+                        delay *= 2;
+                        continue;
+                    }
+                    return response;
+                } catch (err) {
+                    if (i === maxRetries - 1) throw err;
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        function copySummary() {
+            const activePeople = state.people.filter(p => p.active);
+            const payer = activePeople.find(p => p.id === state.payerId);
+
+            if (!payer || state.items.length === 0) {
+                showToast('目前還沒有可以複製的帳單明細喔！', '⚠️');
+                return;
+            }
+
+            let totalBill = 0;
+            let personTotals = {};
+            activePeople.forEach(p => personTotals[p.id] = 0);
+
+            let itemLines = [];
+            state.items.forEach(item => {
+                const price = Number(item.price) || 0;
+                totalBill += price;
+                let sharers = item.splitMode === 'all' 
+                    ? activePeople 
+                    : activePeople.filter(p => item.assignedIds.includes(p.id));
+                
+                if (sharers.length > 0 && price > 0) {
+                    const splitAmount = price / sharers.length;
+                    sharers.forEach(p => personTotals[p.id] += splitAmount);
+                }
+
+                const whoText = item.splitMode === 'all' 
+                    ? '全部人' 
+                    : (sharers.length > 0 ? sharers.map(p => p.name).join('、') : '無人認領');
+                itemLines.push(`• ${item.name || '品項'} $${price} (${whoText})`);
+            });
+
+            let debtLines = [];
+            activePeople.forEach(p => {
+                if (p.id === payer.id) return;
+                const owe = Math.round(personTotals[p.id] || 0);
+                if (owe > 0) {
+                    debtLines.push(`👉 ${p.name} 給 ${payer.name}：$${owe}`);
+                }
+            });
+
+            const summaryText = [
+                `💸【給錢啊😎 分帳明細】`,
+                `總金額：$${Math.round(totalBill)} (由 ${payer.name} 先墊付)`,
+                `--------------------`,
+                ...itemLines,
+                `--------------------`,
+                ...(debtLines.length > 0 ? debtLines : ['🎉 大家互不相欠！']),
+                `快轉帳給 ${payer.name} 吧！😎`
+            ].join('\n');
+
+            const textarea = document.createElement('textarea');
+            textarea.value = summaryText;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('已複製分帳明細！快去群組貼上催款吧 😎', '📋');
+            } catch (err) {
+                showToast('複製失敗，請手動截圖分享', '❌');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        let toastTimer = null;
+        function showToast(msg, icon = '✅') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            document.getElementById('toastIcon').innerText = icon;
+            
+            toast.classList.remove('opacity-0', 'translate-y-2');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-2');
+            }, 2800);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
