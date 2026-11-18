@@ -190,12 +190,15 @@
             <div id="imagePreviewContainer" class="hidden relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900">
                 <img id="receiptPreview" src="" alt="帳單預覽" class="w-full max-h-56 object-contain mx-auto opacity-90">
                 <!-- 掃描中遮罩 -->
-                <div id="scanningOverlay" class="hidden absolute inset-0 bg-slate-900/75 backdrop-blur-xs flex flex-col items-center justify-center text-white scan-overlay">
+                <div id="scanningOverlay" class="hidden absolute inset-0 bg-slate-900/80 backdrop-blur-xs flex flex-col items-center justify-center text-white px-4 text-center scan-overlay">
                     <i class="fa-solid fa-wand-magic-sparkles text-3xl text-amber-400 animate-bounce mb-2"></i>
-                    <p class="font-bold text-sm tracking-wider">AI 正在努力辨識帳單明細...</p>
-                    <p class="text-xs text-slate-300 mt-1">請稍候幾秒鐘</p>
+                    <p id="scanStatusTitle" class="font-bold text-sm tracking-wider">AI 正在辨識帳單明細...</p>
+                    <p id="scanStatusDetail" class="text-xs text-slate-300 mt-1">正在壓縮並傳送圖片</p>
+                    <button type="button" onclick="cancelActiveScan()" class="mt-3 bg-white/15 hover:bg-white/25 active:bg-white/30 text-white text-xs font-bold py-1.5 px-4 rounded-xl border border-white/20 transition z-10">
+                        取消辨識
+                    </button>
                 </div>
-                <button onclick="clearImage()" class="absolute top-2 right-2 bg-black/60 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/80 transition">
+                <button type="button" onclick="clearImage()" class="absolute top-2 right-2 bg-black/60 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/80 transition z-10">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -304,20 +307,35 @@
         };
 
         let activeResolvedModel = null;
+        let currentScanController = null;
+        let scanElapsedTimer = null;
+
+        const EXCLUDED_MODEL_KEYWORDS = ['tts', 'audio', 'image', 'live', 'video', 'embedding', 'thinking', 'computer-use', 'robotics', 'veo', 'imagen'];
+        function isValidOcrModelName(name) {
+            if (!name) return false;
+            const lower = name.toLowerCase();
+            return !EXCLUDED_MODEL_KEYWORDS.some(kw => lower.includes(kw));
+        }
 
         // ==========================================
         // 2. 初始化與核心渲染邏輯
         // ==========================================
         window.onload = function() {
             state.customApiKey = localStorage.getItem('gemini_api_key') || '';
-            activeResolvedModel = localStorage.getItem('gemini_model_name') || null;
+            const savedModel = localStorage.getItem('gemini_model_name');
+            if (savedModel && isValidOcrModelName(savedModel)) {
+                activeResolvedModel = savedModel;
+            } else {
+                activeResolvedModel = null;
+                localStorage.removeItem('gemini_model_name');
+            }
             updateApiKeyBadge();
             renderAll();
         };
 
         function updateApiKeyBadge() {
             const dot = document.getElementById('apiKeyStatusDot');
-            const modelName = localStorage.getItem('gemini_model_name');
+            const modelName = activeResolvedModel || localStorage.getItem('gemini_model_name');
             if (!dot) return;
             if (state.customApiKey) {
                 dot.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]';
@@ -439,8 +457,8 @@
                 card.className = 'bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-xs hover:shadow-md hover:border-amber-300/80 space-y-3.5 transition-all duration-200';
                 
                 let splitCount = item.splitMode === 'all' ? activePeople.length : validAssigned.length;
-                let perPersonText = splitCount > 0 && item.price > 0 
-                    ? `每人 <span class="text-slate-800 font-black">$${Math.round(item.price / splitCount).toLocaleString()}</span>` 
+                let perPersonText = splitCount > 0 && item.price !== 0 
+                    ? `每人 <span class="${item.price < 0 ? 'text-emerald-600' : 'text-slate-800'} font-black">$${Math.round(item.price / splitCount).toLocaleString()}</span>` 
                     : '<span class="text-rose-500">尚未指定分攤人</span>';
 
                 let peopleButtonsHtml = '';
@@ -532,7 +550,7 @@
                     sharers = item.assignedIds.filter(id => activePeople.some(p => p.id === id));
                 }
 
-                if (sharers.length > 0 && price > 0) {
+                if (sharers.length > 0 && price !== 0) {
                     const splitAmount = price / sharers.length;
                     sharers.forEach(id => {
                         personTotals[id] = (personTotals[id] || 0) + splitAmount;
@@ -742,12 +760,14 @@
                 return;
             }
 
+            cancelActiveScan(true);
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.getElementById('compressCanvas');
-                    const MAX_DIMENSION = 1600;
+                    const MAX_DIMENSION = 1280;
                     let width = img.width;
                     let height = img.height;
 
@@ -766,7 +786,7 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
                     const base64Data = compressedDataUrl.split(',')[1];
 
                     document.getElementById('receiptPreview').src = compressedDataUrl;
@@ -787,9 +807,51 @@
             event.target.value = '';
         }
 
+        function stopScanTimer() {
+            if (scanElapsedTimer) {
+                clearInterval(scanElapsedTimer);
+                scanElapsedTimer = null;
+            }
+        }
+
+        function startScanTimer(modelLabel) {
+            stopScanTimer();
+            const startTime = Date.now();
+            const titleEl = document.getElementById('scanStatusTitle');
+            const detailEl = document.getElementById('scanStatusDetail');
+            const cleanLabel = (modelLabel || '').replace(/^models\//, '');
+
+            if (titleEl) titleEl.innerText = 'AI 正在辨識帳單明細...';
+            if (detailEl) detailEl.innerText = cleanLabel ? `使用 ${cleanLabel}（已耗時 0 秒）` : '正在連線至 AI 模型...';
+
+            scanElapsedTimer = setInterval(() => {
+                const sec = Math.floor((Date.now() - startTime) / 1000);
+                if (detailEl) {
+                    if (sec >= 12) {
+                        detailEl.innerText = `明細較多持續解析中（${cleanLabel}，已耗時 ${sec} 秒）`;
+                    } else {
+                        detailEl.innerText = cleanLabel ? `使用 ${cleanLabel}（已耗時 ${sec} 秒）` : `連線等待中（已耗時 ${sec} 秒）`;
+                    }
+                }
+            }, 1000);
+        }
+
+        function cancelActiveScan(silent = false) {
+            if (currentScanController) {
+                currentScanController.abort();
+                currentScanController = null;
+            }
+            stopScanTimer();
+            const overlay = document.getElementById('scanningOverlay');
+            if (overlay) overlay.classList.add('hidden');
+            if (!silent) {
+                showToast('已取消此次帳單辨識。', 'ℹ️');
+            }
+        }
+
         function clearImage() {
+            cancelActiveScan(true);
             document.getElementById('imagePreviewContainer').classList.add('hidden');
-            document.getElementById('scanningOverlay').classList.add('hidden');
             document.getElementById('receiptPreview').src = '';
         }
 
@@ -825,7 +887,7 @@
 
         async function fetchAvailableModels(apiKey) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-            const res = await fetch(url);
+            const res = await fetchWithTimeout(url, { method: 'GET' }, 10000);
             if (!res.ok) {
                 let errText = `HTTP ${res.status}`;
                 try {
@@ -841,10 +903,27 @@
         }
 
         function pickBestFlashModel(models) {
-            const valid = models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'));
+            const valid = models.filter(m =>
+                m.supportedGenerationMethods &&
+                m.supportedGenerationMethods.includes('generateContent') &&
+                isValidOcrModelName(m.name)
+            );
             if (valid.length === 0) return null;
 
-            const priorities = [
+            const exactPriorities = [
+                'models/gemini-2.5-flash',
+                'models/gemini-flash-latest',
+                'models/gemini-2.0-flash',
+                'models/gemini-2.5-flash-lite',
+                'models/gemini-1.5-flash'
+            ];
+
+            for (const exact of exactPriorities) {
+                const found = valid.find(m => m.name.toLowerCase() === exact);
+                if (found) return found.name;
+            }
+
+            const fuzzyPriorities = [
                 'gemini-2.5-flash',
                 'gemini-flash-latest',
                 'gemini-2.0-flash',
@@ -852,7 +931,7 @@
                 'flash'
             ];
 
-            for (const p of priorities) {
+            for (const p of fuzzyPriorities) {
                 const found = valid.find(m => m.name.toLowerCase().includes(p));
                 if (found) return found.name;
             }
@@ -861,7 +940,9 @@
         }
 
         async function resolveActiveModel(apiKey) {
-            if (activeResolvedModel) return activeResolvedModel;
+            if (activeResolvedModel && isValidOcrModelName(activeResolvedModel)) {
+                return activeResolvedModel;
+            }
             try {
                 const models = await fetchAvailableModels(apiKey);
                 const bestModel = pickBestFlashModel(models);
@@ -940,146 +1021,186 @@
                 return;
             }
 
+            const scanController = new AbortController();
+            currentScanController = scanController;
+
             let modelToUse = activeResolvedModel || localStorage.getItem('gemini_model_name');
-            if (!modelToUse) {
+            if (!modelToUse || !isValidOcrModelName(modelToUse)) {
+                startScanTimer('偵測可用模型');
                 try {
                     modelToUse = await resolveActiveModel(activeApiKey);
                 } catch (err) {
+                    if (scanController.signal.aborted) return;
                     console.error("無法取得模型：", err);
                     handleScanError(err);
+                    stopScanTimer();
                     document.getElementById('scanningOverlay').classList.add('hidden');
                     return;
                 }
             }
 
+            // 最多嘗試 2 個模型（已綁定模型 + 1 個備援），避免級聯長時間等待
             const candidateModels = [
                 modelToUse,
-                'models/gemini-2.5-flash',
-                'models/gemini-flash-latest',
-                'models/gemini-2.0-flash',
-                'models/gemini-1.5-flash'
-            ].filter((v, i, a) => v && a.indexOf(v) === i);
+                modelToUse === 'models/gemini-2.5-flash' ? 'models/gemini-flash-latest' : 'models/gemini-2.5-flash'
+            ].filter((v, i, a) => v && isValidOcrModelName(v) && a.indexOf(v) === i);
 
             let lastError = null;
 
-            const prompt = `請仔細辨識這張收據或帳單照片中的所有消費項目與金額。
+            const prompt = `擷取這張收據的所有消費品項與金額，直接回傳精簡 JSON 陣列，不要任何說明文字。
 規則：
-1. 萃取出每個單獨的消費品項名稱 (name) 與該項目的總金額 (price，純數字)。
-2. 如果同一品項有數量大於1，請直接填入該項目的小計金額，並在名稱註明數量。
-3. 如果有服務費、清潔費或外送費，也請列為一個獨立項目。
-4. 忽略「總計」、「小計」、「找零」等非消費明細文字。
-5. 請以 JSON 陣列格式回傳，格式範例：[{"name":"品項名稱","price":100}]。`;
+1. 每筆物件包含 name（品項名稱，若數量大於1請標註於名稱後）與 price（小計金額純數字）。
+2. 若有折扣或 COUPON（例如負數金額或帶減號金額），直接將折扣併為負數金額項目（如 "折價券折扣", -120）或直接自對應品項扣除。
+3. 服務費、清潔費、外送費獨立列為一項；忽略總計、小計、統編、稅額、找零與付款方式。
+範例：[{"name":"鮮奶 x2","price":450}]`;
 
-            const payloadWithSchema = {
-                contents: [
-                    {
-                        role: "user",
-                        parts: [
-                            { text: prompt },
+            const baseContents = [
+                {
+                    role: "user",
+                    parts: [
+                        { text: prompt },
+                        {
+                            inlineData: {
+                                mimeType: "image/jpeg",
+                                data: base64ImageData
+                            }
+                        }
+                    ]
+                }
+            ];
+
+            try {
+                for (const model of candidateModels) {
+                    if (scanController.signal.aborted) return;
+
+                    const formattedModel = model.startsWith('models/') ? model : `models/${model}`;
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/${formattedModel}:generateContent?key=${activeApiKey}`;
+                    const lowerModel = formattedModel.toLowerCase();
+
+                    startScanTimer(formattedModel);
+
+                    const generationConfig = {
+                        temperature: 0.1,
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "ARRAY",
+                            items: {
+                                type: "OBJECT",
+                                properties: {
+                                    "name": { "type": "STRING" },
+                                    "price": { "type": "NUMBER" }
+                                },
+                                required: ["name", "price"]
+                            }
+                        }
+                    };
+
+                    // Gemini 2.5 Flash 預設開啟動態思考，OCR 任務關閉 thinkingBudget 以大幅縮短等待時間
+                    if (lowerModel.includes('2.5-flash') || lowerModel.includes('flash-latest')) {
+                        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+                    }
+
+                    const payloadWithSchema = {
+                        contents: baseContents,
+                        generationConfig
+                    };
+
+                    try {
+                        let response = await fetchWithRetry(
+                            apiUrl,
                             {
-                                inlineData: {
-                                    mimeType: "image/jpeg",
-                                    data: base64ImageData
-                                }
-                            }
-                        ]
-                    }
-                ],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "ARRAY",
-                        items: {
-                            type: "OBJECT",
-                            properties: {
-                                "name": { "type": "STRING" },
-                                "price": { "type": "NUMBER" }
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payloadWithSchema)
                             },
-                            required: ["name", "price"]
+                            { maxRetries: 2, timeoutMs: 25000, signal: scanController.signal }
+                        );
+
+                        // 若 HTTP 400（例如部分模型不支援 thinkingConfig 或 responseSchema），立即降級純 JSON 模式重送
+                        if (response && !response.ok && response.status === 400) {
+                            const fallbackPayload = {
+                                contents: baseContents,
+                                generationConfig: {
+                                    temperature: 0.1
+                                }
+                            };
+                            const fallbackResponse = await fetchWithRetry(
+                                apiUrl,
+                                {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(fallbackPayload)
+                                },
+                                { maxRetries: 1, timeoutMs: 25000, signal: scanController.signal }
+                            );
+                            if (fallbackResponse) {
+                                response = fallbackResponse;
+                            }
+                        }
+
+                        if (!response) {
+                            throw new Error('連線無回應');
+                        }
+
+                        if (!response.ok) {
+                            let errorDetail = `HTTP ${response.status}`;
+                            try {
+                                const errorJson = await response.json();
+                                if (errorJson?.error?.message) {
+                                    errorDetail += ` (${errorJson.error.message})`;
+                                }
+                            } catch (_) {}
+                            throw new Error(errorDetail);
+                        }
+
+                        const result = await response.json();
+                        const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                        if (!jsonText) throw new Error("API 未傳回明細文字。");
+
+                        const parsedItems = cleanAndParseJson(jsonText);
+
+                        if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+                            const activeIds = state.people.filter(p => p.active).map(p => p.id);
+                            const newItems = parsedItems.map((item, idx) => ({
+                                id: 'scan_' + Date.now() + '_' + idx,
+                                name: item.name || '未命名品項',
+                                price: Math.round(Number(item.price) || 0),
+                                splitMode: 'all',
+                                assignedIds: [...activeIds]
+                            }));
+
+                            state.items = [...state.items, ...newItems];
+                            renderAll();
+                            showToast(`成功辨識出 ${newItems.length} 筆明細！`, '🎉');
+                            return;
+                        } else {
+                            showToast('照片中未辨識到明確的明細項目，請手動新增。', '🤔');
+                            return;
+                        }
+                    } catch (error) {
+                        if (scanController.signal.aborted || error.message === 'USER_ABORTED') {
+                            return;
+                        }
+                        console.warn(`嘗試模型 ${model} 失敗：`, error);
+                        lastError = error;
+                        if (error.message && (error.message.includes('403') || error.message.includes('API_KEY_INVALID'))) {
+                            break;
                         }
                     }
                 }
-            };
 
-            for (const model of candidateModels) {
-                const formattedModel = model.startsWith('models/') ? model : `models/${model}`;
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/${formattedModel}:generateContent?key=${activeApiKey}`;
-                
-                try {
-                    let response = await fetchWithRetry(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payloadWithSchema)
-                    });
-
-                    // 若 400 且原因為 schema 不支援，退回純 Prompt 請求
-                    if (!response.ok && response.status === 400) {
-                        const fallbackPayload = {
-                            contents: payloadWithSchema.contents,
-                            generationConfig: {
-                                temperature: 0.1
-                            }
-                        };
-                        const fallbackResponse = await fetchWithRetry(apiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(fallbackPayload)
-                        });
-                        if (fallbackResponse.ok) {
-                            response = fallbackResponse;
-                        }
-                    }
-
-                    if (!response.ok) {
-                        let errorDetail = `HTTP ${response.status}`;
-                        try {
-                            const errorJson = await response.json();
-                            if (errorJson?.error?.message) {
-                                errorDetail += ` (${errorJson.error.message})`;
-                            }
-                        } catch (_) {}
-                        throw new Error(errorDetail);
-                    }
-
-                    const result = await response.json();
-                    const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                    if (!jsonText) throw new Error("API 未傳回明細文字。");
-
-                    const parsedItems = cleanAndParseJson(jsonText);
-
-                    if (Array.isArray(parsedItems) && parsedItems.length > 0) {
-                        const activeIds = state.people.filter(p => p.active).map(p => p.id);
-                        const newItems = parsedItems.map((item, idx) => ({
-                            id: 'scan_' + Date.now() + '_' + idx,
-                            name: item.name || '未命名品項',
-                            price: Math.round(Number(item.price) || 0),
-                            splitMode: 'all',
-                            assignedIds: [...activeIds]
-                        }));
-
-                        state.items = [...state.items, ...newItems];
-                        renderAll();
-                        showToast(`成功辨識出 ${newItems.length} 筆明細！`, '🎉');
-                        document.getElementById('scanningOverlay').classList.add('hidden');
-                        return;
-                    } else {
-                        showToast('照片中未辨識到明確的明細項目，請手動新增。', '🤔');
-                        document.getElementById('scanningOverlay').classList.add('hidden');
-                        return;
-                    }
-                } catch (error) {
-                    console.warn(`嘗試模型 ${model} 失敗：`, error);
-                    lastError = error;
-                    if (error.message && (error.message.includes('403') || error.message.includes('API_KEY_INVALID'))) {
-                        break;
-                    }
+                if (!scanController.signal.aborted) {
+                    console.error("Receipt scan final error:", lastError);
+                    handleScanError(lastError);
                 }
+            } finally {
+                if (currentScanController === scanController) {
+                    currentScanController = null;
+                }
+                stopScanTimer();
+                document.getElementById('scanningOverlay').classList.add('hidden');
             }
-
-            console.error("Receipt scan final error:", lastError);
-            handleScanError(lastError);
-            document.getElementById('scanningOverlay').classList.add('hidden');
         }
 
         function cleanAndParseJson(text) {
@@ -1096,7 +1217,11 @@
 
         function handleScanError(error) {
             const rawMsg = error?.message || '';
-            if (rawMsg.includes('403') || rawMsg.includes('API_KEY_INVALID')) {
+            if (rawMsg === 'USER_ABORTED') return;
+
+            if (rawMsg === 'TIMEOUT') {
+                showToast('AI 辨識逾時（超過 25 秒），請確認網路順暢或裁切收據分次拍攝。', '⚠️');
+            } else if (rawMsg.includes('403') || rawMsg.includes('API_KEY_INVALID')) {
                 showToast('API 金鑰無效或權限不足，請點擊右上角金鑰按鈕重新設定。', '❌');
                 openApiKeyModal();
             } else if (rawMsg.includes('429')) {
@@ -1111,24 +1236,69 @@
             }
         }
 
-        async function fetchWithRetry(url, options, maxRetries = 3) {
+        async function fetchWithTimeout(url, options, timeoutMs = 25000, externalSignal = null) {
+            const controller = new AbortController();
+            let timedOut = false;
+
+            const onExternalAbort = () => controller.abort();
+            if (externalSignal) {
+                if (externalSignal.aborted) {
+                    throw new Error('USER_ABORTED');
+                }
+                externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+            }
+
+            const timer = setTimeout(() => {
+                timedOut = true;
+                controller.abort();
+            }, timeoutMs);
+
+            try {
+                return await fetch(url, { ...options, signal: controller.signal });
+            } catch (err) {
+                if (externalSignal && externalSignal.aborted) {
+                    throw new Error('USER_ABORTED');
+                }
+                if (timedOut) {
+                    throw new Error('TIMEOUT');
+                }
+                throw err;
+            } finally {
+                clearTimeout(timer);
+                if (externalSignal) {
+                    externalSignal.removeEventListener('abort', onExternalAbort);
+                }
+            }
+        }
+
+        async function fetchWithRetry(url, options, { maxRetries = 2, timeoutMs = 25000, signal = null } = {}) {
             let delay = 1000;
+            let lastResponse = null;
+
             for (let i = 0; i < maxRetries; i++) {
+                if (signal && signal.aborted) {
+                    throw new Error('USER_ABORTED');
+                }
                 try {
-                    const response = await fetch(url, options);
+                    const response = await fetchWithTimeout(url, options, timeoutMs, signal);
+                    lastResponse = response;
                     if (response.ok) return response;
-                    if (response.status === 429 || response.status >= 500) {
+                    if ((response.status === 429 || response.status >= 500) && i < maxRetries - 1) {
                         await new Promise(res => setTimeout(res, delay));
                         delay *= 2;
                         continue;
                     }
                     return response;
                 } catch (err) {
+                    if (err.message === 'USER_ABORTED' || err.message === 'TIMEOUT') {
+                        throw err;
+                    }
                     if (i === maxRetries - 1) throw err;
                     await new Promise(res => setTimeout(res, delay));
                     delay *= 2;
                 }
             }
+            return lastResponse;
         }
 
         async function copySummary() {
@@ -1152,7 +1322,7 @@
                     ? activePeople 
                     : activePeople.filter(p => item.assignedIds.includes(p.id));
                 
-                if (sharers.length > 0 && price > 0) {
+                if (sharers.length > 0 && price !== 0) {
                     const splitAmount = price / sharers.length;
                     sharers.forEach(p => personTotals[p.id] += splitAmount);
                 }
